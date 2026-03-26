@@ -1,0 +1,7 @@
+LEVEL_3_STRING = [
+    "x...xxx.xxx",
+    "x...x...x.x",
+    "x...xx..x.x",
+    "x...x...x.x",
+    "xxx.xxx.xxx"
+]
