@@ -18,7 +18,7 @@ A continuación se listan las prácticas desarrolladas durante el curso. Puedes 
   * Generación Dinámica de Niveles: *Carga procedural de formaciones enemigas mediante matrices numéricas y mapeo de cadenas de texto (ASCII-art).*
   * Físicas y Colisiones: *Resolución de intersecciones de Bounding Boxes y mecánicas de invulnerabilidad condicional (enemigos blindados).*
   * IA y Dificultad Adaptativa: *Traslación automática de enjambres, cadencia de disparo pseudoaleatoria y escalado de velocidad inversamente proporcional a la cantidad de entidades restantes.*
-* 🔗 **[Ir a la documentación y código de la Práctica 1](./Practica%201)**
+* 🔗 **[Ir a la documentación y código de la Práctica 1](./Space%Invaders)**
 
 ---
 
