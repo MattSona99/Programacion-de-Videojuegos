@@ -22,11 +22,28 @@ A continuación se listan las prácticas desarrolladas durante el curso. Puedes 
 
 ---
 
+### [🎮 Ubstract - Juego de Acción 2D](./Ubstract)
+* **Tipo de Juego:** Action / Boss-Fight Arena (2D Side-View)
+* **Objetivo:** Desarrollar un juego de acción 2D con mecánicas de combate avanzadas, incluyendo un sistema de "Perfect Parry" (bloqueo al frame exacto), IA de bosses sofisticada y gestión completa de ciclos de juego, interfaz de usuario y persistencia de datos.
+* **Problema a resolver:** Implementación de un juego roguelike donde el jugador debe enfrentarse a tres bosses únicos con patrones de ataque específicos. El desafío principal es balancear la dificultad, implementar un sistema de defensa basado en timing preciso, y crear IA enemiga con comportamientos complejos y diferenciados.
+* **Mecánicas y Sistemas Implementados:**
+  * **Sistema de Combate Avanzado:** *Combos de ataque, bloques simples y Perfect Parry con reflejo de daño.*
+  * **IA de Bosses Sofisticada:** *Tres jefes con patrones únicos - Híbrido Range/Melee, State-Driven con modalidad especial, y Maestro Acrobatico.*
+  * **Sistema de Puntuación y Leaderboard:** *Tracking de estadísticas detalladas y ranking persistente de jugadores.*
+  * **Gestión de Física 2D:** *Movimiento fluido, detección de terreno, restricciones de movimiento durante combate.*
+  * **Arquitectura Modular:** *Separación clara entre Controllers, Audio, UI, EnemyAI con paterns como Manager Pattern y State Pattern.*
+  * **Persistencia de Datos:** *Salvataje de puntajes, preferencias de jugador y estadísticas de partidas.*
+  * **Sistema de Audio Avanzado:** *Mixer centralizado, managers separados para menu y gameplay, feedback sonoro dinámico.*
+* 🔗 **[Ir a la documentación y código de Ubstract](./Ubstract)**
+
+---
+
 ## 🛠️ Tecnologías Utilizadas
 
-* **Lenguaje:** Python 3.x
-* **Librerías/Motores:** Pygame
-* **Entorno:** Visual Studio Code
+* **Lenguajes:** Python 3.x, C#
+* **Librerías/Motores:** Pygame, Unity (2022.3+)
+* **Plataformas Target:** Windows/PC
+* **Entorno:** Visual Studio Code, Unity Hub
 
 ---
 *Desarrollado para el curso académico 2025/2026.*
