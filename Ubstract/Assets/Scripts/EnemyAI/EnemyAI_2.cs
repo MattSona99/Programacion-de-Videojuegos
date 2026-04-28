@@ -410,8 +410,12 @@ public class EnemyAI_2 : MonoBehaviour
         bool isPlayerToTheRight = player.position.x > transform.position.x;
         bool isFacingRight = transform.localScale.x < 0; 
 
-        // Logical check for player being behind the Boss's active strike zone
-        bool isPlayerBehind = (isPlayerToTheRight && !isFacingRight) || (!isPlayerToTheRight && isFacingRight);
+        bool isPlayerBehind = false;
+
+        if (distance > 0.5f) 
+        {
+            isPlayerBehind = (isPlayerToTheRight && !isFacingRight) || (!isPlayerToTheRight && isFacingRight);
+        }
 
         if (distance > 5.0f || isPlayerBehind)
         {

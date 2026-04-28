@@ -13,6 +13,10 @@ public class EnemyHealth : MonoBehaviour
 
     [Tooltip("The amount of health each visual health bar segment represents.")]
     public int healthPerBar = 100;
+
+    [Header("Phase Transition Configuration")]
+    [Tooltip("Health interval required to trigger a phase transition. Can be overridden by AI scripts.")]
+    public int phaseTriggerStep = 100;
     
     private int currentHealth;
     
@@ -45,7 +49,7 @@ public class EnemyHealth : MonoBehaviour
 
     /// <summary>
     /// Initializes health values and caches references to the MatchTracker and active AI components.
-    /// Dynamically links and configures the Boss UI elements (Frames, Bars, and Names).
+    /// Dynamically links and configures the Boss UI elements.
     /// </summary>
     void Start()
     {
@@ -93,8 +97,8 @@ public class EnemyHealth : MonoBehaviour
     }
 
     /// <summary>
-    /// Processes incoming damage. Handles Boss-specific threshold logic to trigger 
-    /// phase transitions (e.g., Crazy Mode or Vertical Phase) instead of instant death.
+    /// Processes incoming damage. Uses modular arithmetic to dynamically calculate thresholds 
+    /// based on 'phaseTriggerStep' to trigger transitions instead of instant death.
     /// </summary>
     /// <param name="damageAmount">The amount of health to subtract.</param>
     public void TakeDamage(int damageAmount)
@@ -114,17 +118,17 @@ public class EnemyHealth : MonoBehaviour
         int oldHealth = currentHealth;
         currentHealth -= damageAmount;
 
-        // Universal check for phase changes or death based on dynamic health segments
-        bool thresholdCrossed = (oldHealth > healthPerBar && currentHealth <= healthPerBar) || 
-                                (oldHealth > 0 && currentHealth <= 0);
+        // Dynamic threshold calculation (e.g., if step is 50 and oldHealth is 140, targetThreshold is 100)
+        int targetThreshold = ((oldHealth - 1) / phaseTriggerStep) * phaseTriggerStep;
+        bool thresholdCrossed = currentHealth <= targetThreshold;
 
-        if (thresholdCrossed)
+        if (thresholdCrossed && currentHealth < oldHealth)
         {
             // If the entity is a Boss with a defined phase transition
             if (aiScript2 != null || aiScript3 != null)
             {
-                // Lock health at the threshold to allow for transition animations
-                currentHealth = (oldHealth > healthPerBar) ? (healthPerBar + 1) : 1;
+                // Lock health just above the threshold to prevent skipping phases
+                currentHealth = (targetThreshold > 0) ? (targetThreshold + 1) : 1;
                 UpdateUI();
 
                 // Invoke the specific phase logic on the active AI script
@@ -158,7 +162,6 @@ public class EnemyHealth : MonoBehaviour
     /// <summary>
     /// Restores health points based on a percentage of the health bar capacity.
     /// </summary>
-    /// <param name="percent">Percentage of 'healthPerBar' to regenerate (0.0 to 1.0).</param>
     public void Regenerate(float percent) {
         int amount = Mathf.RoundToInt(healthPerBar * percent);
         currentHealth = Mathf.Clamp(currentHealth + amount, 0, maxHealth);
@@ -167,7 +170,7 @@ public class EnemyHealth : MonoBehaviour
 
     /// <summary>
     /// Logic gate invoked by the AI once transition sequences are finalized. 
-    /// This forcefully pushes health below the segment threshold to resume normal gameplay.
+    /// Forcefully pushes health below the segment threshold to resume normal gameplay.
     /// </summary>
     public void ForcePassThreshold()
     {
@@ -194,7 +197,6 @@ public class EnemyHealth : MonoBehaviour
 
     /// <summary>
     /// Handles the visual representation of multi-layered health bars.
-    /// Switches between gradients and fill percentages based on current health vs bar capacity.
     /// </summary>
     void UpdateUI()
     {
@@ -202,7 +204,6 @@ public class EnemyHealth : MonoBehaviour
         {
             if (visualHealth > healthPerBar)
             {
-                // Handling the "extra" health bar layer
                 float extraHealth = visualHealth - healthPerBar;
                 float extraPercentage = extraHealth / healthPerBar;
                 
@@ -211,7 +212,6 @@ public class EnemyHealth : MonoBehaviour
             }
             else
             {
-                // Handling the base health bar layer
                 float healthPercentage = visualHealth / healthPerBar;
                 
                 healthBarFill.fillAmount = healthPercentage;
@@ -221,8 +221,7 @@ public class EnemyHealth : MonoBehaviour
     }
 
     /// <summary>
-    /// Disposes of the enemy object, updates global match statistics, 
-    /// and notifies the GameManager to handle level progression.
+    /// Disposes of the enemy object, updates global match statistics.
     /// </summary>
     void Die()
     {

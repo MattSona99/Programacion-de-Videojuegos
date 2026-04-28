@@ -73,9 +73,18 @@ public class EnemyAI_3 : MonoBehaviour
     {
         anim = GetComponent<Animator>();
         rb = GetComponent<Rigidbody2D>();
+        
         GameObject p = GameObject.FindGameObjectWithTag("Player");
         if (p != null) player = p.transform;
+        
         healthScript = GetComponent<EnemyHealth>();
+        
+        // Force Phase Transition to trigger every 50 HP specifically for Boss 3
+        if (healthScript != null) 
+        {
+            healthScript.phaseTriggerStep = 50; 
+        }
+        
         nextAttackTime = Time.time + Random.Range(minAttackDelay, maxAttackDelay);
     }
 

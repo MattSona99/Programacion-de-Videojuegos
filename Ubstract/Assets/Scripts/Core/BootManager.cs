@@ -36,7 +36,17 @@ public class BootManager : MonoBehaviour
     /// </summary>
     void Start()
     {
+        float music = PlayerPrefs.GetFloat("MusicVolume", 1f);
+        float sfx = PlayerPrefs.GetFloat("SFXVolume", 1f);
+
+        if (mainMixer != null)
+        {
+            mainMixer.SetFloat("MusicVol", Mathf.Log10(Mathf.Max(0.0001f, music)) * 20f);
+            mainMixer.SetFloat("SFXVol", Mathf.Log10(Mathf.Max(0.0001f, sfx)) * 20f);
+        }
+
         StartCoroutine(BootSequence());
+        Screen.SetResolution(1920, 1080, FullScreenMode.FullScreenWindow);
     }
 
     /// <summary>
@@ -44,17 +54,8 @@ public class BootManager : MonoBehaviour
     /// </summary>
     void Awake()
     {
-        float music = PlayerPrefs.GetFloat("MusicVolume", 1f);
-        float sfx = PlayerPrefs.GetFloat("SFXVolume", 1f);
         bool isMuted = PlayerPrefs.GetInt("IsMuted", 0) == 1;
-
         AudioListener.volume = isMuted ? 0f : 1f;
-
-        if (mainMixer != null)
-        {
-            mainMixer.SetFloat("MusicVol", Mathf.Log10(Mathf.Max(0.0001f, music)) * 20f);
-            mainMixer.SetFloat("SFXVol", Mathf.Log10(Mathf.Max(0.0001f, sfx)) * 20f);
-        }
     }
 
     /// <summary>

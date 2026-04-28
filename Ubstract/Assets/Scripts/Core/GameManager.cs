@@ -19,6 +19,9 @@ public class GameManager : MonoBehaviour
     [Header("Music Settings")]
     public AudioClip[] levelMusicTracks;
 
+    [Header("Audio Engine")]
+    public UnityEngine.Audio.AudioMixer mainMixer;
+
     [Header("Progression")]
     public int currentLevel = 1;
     public int currentScore = 0;
@@ -48,18 +51,11 @@ public class GameManager : MonoBehaviour
 
     private GameObject currentLevelInstance;
 
-    /// <summary>
-    /// Initializes the Singleton instance.
-    /// </summary>
     void Awake()
     {
         instance = this;
     }
 
-    /// <summary>
-    /// Loads saved player preferences, initializes the first level, 
-    /// and begins the intro transition sequence.
-    /// </summary>
     void Start()
     {
         LoadPreferences();
@@ -69,18 +65,46 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Handles the visual and logical sequence for the initial level load.
-    /// Disables enemy logic and hides UI to prevent premature attacks during the screen fade.
+    /// CORE MECHANIC: Safely disables or enables player movement and physics during cinematic transitions.
     /// </summary>
+    private void TogglePlayerControls(bool isActive)
+    {
+        if (playerTransform == null) return;
+
+        GameObject player = playerTransform.gameObject;
+        MonoBehaviour pMovements = (MonoBehaviour)player.GetComponent("PlayerMovements");
+        MonoBehaviour pCombat = (MonoBehaviour)player.GetComponent("PlayerCombat");
+        Rigidbody2D rb = player.GetComponent<Rigidbody2D>();
+
+        if (pMovements != null) pMovements.enabled = isActive;
+        if (pCombat != null) pCombat.enabled = isActive;
+
+        if (rb != null)
+        {
+            if (!isActive)
+            {
+                rb.linearVelocity = Vector2.zero;
+                rb.bodyType = RigidbodyType2D.Kinematic;
+            }
+            else
+            {
+                rb.bodyType = RigidbodyType2D.Dynamic;
+            }
+        }
+    }
+
     private IEnumerator FirstLevelIntroRoutine()
     {
+        // 1. BLOCCA IL GIOCATORE
+        TogglePlayerControls(false); 
+
         if (enemyUIGroup != null) enemyUIGroup.alpha = 0f;
 
         EnemyHealth enemy = null;
         if (currentLevelInstance != null)
         {
             enemy = currentLevelInstance.GetComponentInChildren<EnemyHealth>();
-            if (enemy != null) enemy.gameObject.SetActive(false);
+            if (enemy != null) enemy.gameObject.SetActive(false); 
         }
 
         if (TransitionManager.instance != null)
@@ -92,11 +116,10 @@ public class GameManager : MonoBehaviour
 
         if (enemy != null) enemy.gameObject.SetActive(true);
         if (enemyUIGroup != null) enemyUIGroup.alpha = 1f;
+        
+        TogglePlayerControls(true); 
     }
 
-    /// <summary>
-    /// Listens for the Escape key to toggle the pause menu or close nested setting panels.
-    /// </summary>
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.Escape))
@@ -110,9 +133,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Freezes the game's time scale and activates the pause UI overlay.
-    /// </summary>
+
     public void PauseGame()
     {
         if (gameOverPanel != null && gameOverPanel.activeSelf) return;
@@ -125,9 +146,6 @@ public class GameManager : MonoBehaviour
         isPaused = true;
     }
 
-    /// <summary>
-    /// Restores the game's time scale and deactivates the pause UI overlay.
-    /// </summary>
     public void ResumeGame()
     {
         pausePanel.SetActive(false);
@@ -135,29 +153,18 @@ public class GameManager : MonoBehaviour
         isPaused = false;
     }
 
-    /// <summary>
-    /// Swaps the active UI panel within the pause menu to the settings screen.
-    /// </summary>
     public void OpenSettings()
     {
         if (pauseMenuContent != null) pauseMenuContent.SetActive(false);
         if (settingsPanel != null) settingsPanel.SetActive(true);
     }
 
-    /// <summary>
-    /// Closes the settings screen and returns to the main pause menu layout.
-    /// </summary>
     public void CloseSettings()
     {
         if (settingsPanel != null) settingsPanel.SetActive(false);
         if (pauseMenuContent != null) pauseMenuContent.SetActive(true);
     }
 
-    /// <summary>
-    /// Destroys the current arena, instantiates the requested level prefab, 
-    /// positions the player, and updates camera target references.
-    /// </summary>
-    /// <param name="levelIndex">The zero-based index of the level to load.</param>
     public void LoadLevel(int levelIndex)
     {
         if (levelIndex >= levelPrefabs.Length)
@@ -189,10 +196,6 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Triggered by the EnemyHealth system upon boss death. Grants score, hides UI, 
-    /// and initiates the transition to the next arena.
-    /// </summary>
     public void OnEnemyDefeated()
     {
         currentScore += 1000;
@@ -217,12 +220,11 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Coordinates the inter-level visual transitions. Keeps the newly spawned enemy 
-    /// disabled during the fade-in to prevent premature attacks or physics updates.
-    /// </summary>
     private IEnumerator TransitionToNextLevelRoutine()
     {
+        // 1. BLOCCA IL GIOCATORE mentre lo schermo diventa nero
+        TogglePlayerControls(false); 
+
         yield return new WaitForSeconds(1.0f);
         yield return StartCoroutine(TransitionManager.instance.AnimateLevelTextRoutine(currentLevel + 1));
         
@@ -242,13 +244,15 @@ public class GameManager : MonoBehaviour
 
         if (nextEnemy != null) nextEnemy.gameObject.SetActive(true);
         if (enemyUIGroup != null) enemyUIGroup.alpha = 1f;
+
+        // 2. SBLOCCA IL GIOCATORE 
+        TogglePlayerControls(true); 
     }
 
-    /// <summary>
-    /// Handles the visual and logical sequence for the final level load.
-    /// </summary>
     private IEnumerator ShowVictoryPanelRoutine()
     {
+        TogglePlayerControls(false);
+
         yield return new WaitForSeconds(1.5f);
 
         if (TransitionManager.instance != null)
@@ -263,12 +267,8 @@ public class GameManager : MonoBehaviour
             if (DataManager.instance != null) DataManager.instance.FinalizeAndSaveMatch();
             Time.timeScale = 0f;
         }
-
     }
 
-    /// <summary>
-    /// Commits the current game settings to PlayerPrefs for persistence across sessions.
-    /// </summary>
     public void SavePreferences(float volume, int time, int lives)
     {
         globalVolume = volume;
@@ -281,13 +281,16 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.Save();
     }
 
-    /// <summary>
-    /// Halts gameplay execution, saves final match statistics, and displays the Game Over screen.
-    /// </summary>
     public void GameOver()
     {
         if (gameOverPanel != null)
         {
+            if (GameAudioManager.instance != null)
+            {
+                GameAudioManager.instance.StopAllMusic();
+            }
+            TogglePlayerControls(false);
+
             if (DataManager.instance != null) DataManager.instance.FinalizeAndSaveMatch();
             
             gameOverPanel.SetActive(true);
@@ -295,13 +298,14 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Restores time scale and restarts the active scene, carrying over the current player's data profile.
-    /// </summary>
     public void RestartLevel()
     {
         Time.timeScale = 1f;
-
+        if (GameAudioManager.instance != null)
+        {
+            GameAudioManager.instance.StopAllMusic();
+        }
+        
         if (DataManager.instance != null && DataManager.instance.currentMatchData != null)
         {
             string oldName = DataManager.instance.currentMatchData.playerName;
@@ -310,9 +314,6 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(SceneManager.GetActiveScene().name); 
     }
 
-    /// <summary>
-    /// Restores time scale, finalizes match data if actively playing, and returns to the main menu.
-    /// </summary>
     public void GoToMainMenu()
     {
         Time.timeScale = 1f;
@@ -327,13 +328,27 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Retrieves saved game settings from PlayerPrefs and applies them (e.g., global audio volume).
+    /// Retrieves saved game settings from PlayerPrefs and applies them to the AudioMixer.
+    /// This ensures volumes are correct instantly upon loading the arena.
     /// </summary>
     public void LoadPreferences()
     {
-        float musicVol = PlayerPrefs.GetFloat("MusicVolume", 1f);
-        float sfxVol = PlayerPrefs.GetFloat("SFXVolume", 1f);
+        float music = PlayerPrefs.GetFloat("MusicVolume", 1f);
+        float sfx = PlayerPrefs.GetFloat("SFXVolume", 1f); // CORRETTO: rinominato in 'sfx'
         bool isMuted = PlayerPrefs.GetInt("IsMuted", 0) == 1;
+
         AudioListener.volume = isMuted ? 0f : 1f;
+
+        if (mainMixer != null)
+        {
+            // Applica la conversione logaritmica ai decibel per l'AudioMixer
+            mainMixer.SetFloat("MusicVol", Mathf.Log10(Mathf.Max(0.0001f, music)) * 20f);
+            mainMixer.SetFloat("SFXVol", Mathf.Log10(Mathf.Max(0.0001f, sfx)) * 20f);
+            Debug.Log("GameManager: Preferences loaded and applied to AudioMixer.");
+        }
+        else
+        {
+            Debug.LogWarning("GameManager: MainMixer non assegnato nell'Inspector!");
+        }
     }
 }
