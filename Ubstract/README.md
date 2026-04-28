@@ -81,97 +81,83 @@ Ubstract tracks detailed metrics to evaluate your performance:
 
 ```
 Ubstract/
-├── Assets/
-│   ├── Animations/               # Animation controllers and clips
-│   │   ├── Arenas/              # Arena animations
-│   │   ├── Clips/               # Generic animation clips
-│   │   ├── Controllers/         # Animation Controllers
-│   │   ├── Enemies/             # Enemy/boss animations
-│   │   ├── Items/               # Item animations (health drops, etc)
-│   │   ├── Menu/                # Menu UI animations
-│   │   └── Player/              # Player animations
-│   │
-│   ├── Audio/                    # Game audio management
-│   │   ├── MainMixer.mixer      # Main audio mixer
-│   │   ├── Music/               # Level music tracks
-│   │   └── SFX/                 # Sound effects
-│   │
-│   ├── Prefabs/                  # Reusable prefab objects
-│   │
-│   ├── Resources/                # Runtime loaded resources
-│   │
-│   ├── Scenes/                   # Game scenes
-│   │
-│   ├── Scripts/                  # C# code organized in subfolders
-│   │   ├── Core/                # Game management and core logic
-│   │   │   ├── GameManager.cs               # Main game manager
-│   │   │   ├── DataManager.cs               # Persistent data management
-│   │   │   ├── MatchTracker.cs              # Match statistics tracking
-│   │   │   └── SceneTransitionManager.cs    # Scene transitions
-│   │   │
-│   │   ├── Player/               # Player logic
-│   │   │   ├── PlayerController.cs          # Movement and input control
-│   │   │   ├── PlayerCombat.cs              # Combat system
-│   │   │   ├── PlayerHealth.cs              # Health and lives system
-│   │   │   ├── PlayerAnimator.cs            # Animation management
-│   │   │   └── PlayerAudio.cs               # Player audio feedback
-│   │   │
-│   │   ├── EnemyAI/              # Boss artificial intelligence
-│   │   │   ├── EnemyAI_1.cs                 # Boss 1 - Range/Melee Hybrid
-│   │   │   ├── EnemyAI_2.cs                 # Boss 2 - State-Driven
-│   │   │   ├── EnemyAI_3.cs                 # Boss 3 - Acrobatic
-│   │   │   ├── EnemyHealth.cs               # Enemy health system
-│   │   │   └── EnemyAudio.cs                # Boss-specific audio
-│   │   │
-│   │   ├── Arena/                # Combat arena logic
-│   │   │   └── ArenaManager.cs              # Arena management
-│   │   │
-│   │   ├── Audio/                # Game audio system
-│   │   │   ├── MenuAudioManager.cs          # Menu audio
-│   │   │   ├── GameplayAudioManager.cs      # Gameplay audio
-│   │   │   └── AudioHandler.cs              # Generic audio handler
-│   │   │
-│   │   ├── UI/                   # User interface logic
-│   │   │   ├── MainMenuUI.cs                # Main menu
-│   │   │   ├── GameplayUI.cs                # In-game UI
-│   │   │   ├── HealthBar.cs                 # Player health bar
-│   │   │   ├── EnemyHealthBar.cs            # Enemy health bar
-│   │   │   ├── LeaderboardUI.cs             # Leaderboard display
-│   │   │   ├── VictoryPanel.cs              # Victory panel
-│   │   │   ├── GameOverPanel.cs             # Game over panel
-│   │   │   ├── PauseMenu.cs                 # Pause menu
-│   │   │   ├── SettingsPanel.cs             # Settings panel
-│   │   │   ├── CRTEffectController.cs       # CRT visual effect
-│   │   │   └── PlayerNameInput.cs           # Player name input
-│   │   │
-│   │   └── Models/               # Data models
-│   │       ├── ScoreData.cs                 # Score data structure
-│   │       └── PlayerData.cs                # Player persistent data
-│   │
-│   ├── Settings/                 # Game configuration resources
-│   │
-│   ├── Shaders/                  # Custom shaders
-│   │
-│   ├── Sprites/                  # Sprite assets (characters, enemies, UI)
-│   │
-│   └── TextMesh Pro/             # TextMesh Pro resources for UI
 │
-├── ProjectSettings/              # Unity project configuration
-│   ├── AudioManager.asset        # Global audio settings
-│   ├── DynamicsManager.asset     # Physics 2D/3D settings
-│   ├── Physics2DSettings.asset   # Specific 2D physics configuration
-│   ├── QualitySettings.asset     # Graphics quality levels
-│   ├── InputManager.asset        # Input configuration
-│   ├── TagManager.asset          # Tags and Layers
-│   └── ...
+├── Assets/                     # Recursos del juego
+│ ├── Animations/               # Controladores y clips de animación
+│ │ ├── Arenas/                 # Animaciones de la arena
+│ │ ├── Clips/                  # Clips de animación genéricos
+│ │ ├── Controllers/            # Animation Controllers de Unity
+│ │ ├── Enemies/                # Animaciones de los jefes
+│ │ ├── Items/                  # Animaciones de los ítems (drops de salud)
+│ │ ├── Menu/                   # Animaciones de la interfaz del menú
+│ │ └── Player/                 # Animaciones del jugador
+│ │
+│ ├── Audio/                   # Sistema de audio del juego
+│ │ ├── MainMixer.mixer         # Mezclador de audio principal
+│ │ ├── Music/                  # Pistas de música de los niveles
+│ │ └── SFX/                    # Efectos de sonido
+│ │
+│ ├── Prefabs/                  # Objetos prefabricados reutilizables
+│ ├── Resources/                # Recursos cargados en tiempo de ejecución
+│ ├── Scenes/                   # Escenas del juego (Menú, Arena, etc.)
+│ ├── Settings/                 # Recursos de configuración
+│ ├── Shaders/                  # Shaders personalizados
+│ ├── Sprites/                  # Assets de sprites (personajes, enemigos, interfaz)
+│ └── TextMesh Pro/             # Recursos de TextMesh Pro
+│ │
+│ └── Scripts/ NÚCLEO DE LA APLICACIÓN
+│ │
+│ ├── Core/                    # Lógica fundamental del juego
+│ │ ├── BootManager.cs          # Inicialización del juego
+│ │ ├── GameManager.cs          # Gestor principal del juego
+│ │ ├── DataManager.cs          # Gestión de datos persistentes (guardados, estadísticas)
+│ │ └── MatchTracker.cs         # Seguimiento de estadísticas de la partida
+│ │
+│ ├── Player/                  # Lógica del jugador
+│ │ ├── PlayerMovements.cs      # Control de movimiento y entrada
+│ │ ├── PlayerCombat.cs         # Sistema de combate (ataques, combos)
+│ │ ├── PlayerHealth.cs         # Sistema de salud y vidas
+│ │ └── HealthPickup.cs         # Gestión de recolección de drops de salud
+│ │
+│ ├── EnemyAI/                 # Inteligencia artificial de los jefes
+│ │ ├── EnemyAI_1.cs            # Jefe 1 - Híbrido a distancia/cuerpo a cuerpo
+│ │ ├── EnemyAI_2.cs            # Jefe 2 - Luchador basado en estados
+│ │ ├── EnemyAI_3.cs            # Jefe 3 - Maestro acrobático
+│ │ ├── EnemyHealth.cs          # Sistema de salud de los enemigos
+│ │ ├── Enemy2ComboHitbox.cs    # Hitbox especial del combo del Jefe 2
+│ │ └── Enemy2CrazyHitbox.cs    # Hitbox especial "Crazy Mode" del Jefe 2
+│ │
+│ ├── Arena/                   # Lógica de la arena de combate
+| | ├── DynamicCamera.cs        # Gestión de la cámara de vídeo dinámica
+| | ├── FloatingText.cs         # Comportamiento de los transitorios
+│ │ └── ArenaManager.cs         # Gestión de la escena de la arena
+│ │
+│ ├── Audio/                   # Sistema de audio avanzado
+│ │ ├── GameAudioManager.cs     # Audio durante la partida
+│ │ ├── MenuAudioManager.cs     # Audio en el menú
+│ │ ├── PlayerAudio.cs          # Audio por el player
+│ │ ├── Enemy1Audio.cs          # Audio por el enemigo 1
+│ │ ├── Enemy2Audio.cs          # Audio por el enemigo 2
+│ │ └── Enemy3Audio.cs          # Audio por el enemigo 3
+│ │
+│ ├── UI/                      # Lógica de la interfaz de usuario
+│ │ ├── MainMenuUI.cs           # Menú principal
+│ │ ├── SettingsUI.cs           # Interfaz de ajustes
+│ │ ├── LeaderboardUI.cs        # Visualización de la tabla de clasificación
+│ │ ├── LeaderboardEntry.cs     # Estilo de tabla de clasificación de tarjetas
+│ │ ├── MainMenuParallax.cs     # Estilo para el fondo del menú principal
+│ │ ├── GlobalButtonStyling.cs  # Estilo de botón
+│ │ ├── CRTController.cs        # Efecto visual CRT retro
+│ │ └── TransitionManager.cs    # Efecto de transicción
+│ │
+│ └── Models/                   # Modelos de datos
+│ | └── ScoreData.cs              # Estructura de datos de puntuación
 │
-├── Packages/
-│   ├── manifest.json             # Package dependencies
-│   └── packages-lock.json        # Package versions lock file
+├── ProjectSettings/            # Configuración del proyecto de Unity
+├── Packages/                   # Dependencias del proyecto
+├── Logs/                       # Registros de depuración y errores
 │
-├── Logs/                         # Debug and error logs
-│
-└── README.md                     # This file
+└── README.md                   # Readme file para Github
 ```
 
 ## 🎮 How to Play
