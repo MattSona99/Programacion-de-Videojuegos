@@ -60,6 +60,11 @@ public class DialogueManager : MonoBehaviour
         IsPlaying = true;
         SetPlayerLocked(true);
 
+        // Pulisci i campi prima del fade-in così il canvas non riappare con il testo del dialogo precedente
+        if (speakerLabel != null) speakerLabel.text = "";
+        if (bodyText != null) bodyText.text = "";
+        if (advanceHint != null) advanceHint.SetActive(false);
+
         yield return Fade(1f);
 
         foreach (var line in dialogue.lines)
