@@ -113,6 +113,9 @@ public class DialogueManager : MonoBehaviour
         {
             yield return null;
         }
+
+        // Consume the frame of the press so the next TypewriterRoutine doesn't see it as a skip
+        yield return null;
     }
 
     private IEnumerator Fade(float targetAlpha)
@@ -144,11 +147,12 @@ public class DialogueManager : MonoBehaviour
                 }
             }
 
+            // Allinea con MainMenuManager.SetPlayerMovement: enable/disable del componente PlayerInput
+            // (non Activate/Deactivate, perché potrebbe essere chiamato su un componente disabilitato dal menu)
             var playerInput = player.GetComponent<PlayerInput>();
             if (playerInput != null)
             {
-                if (locked) playerInput.DeactivateInput();
-                else playerInput.ActivateInput();
+                playerInput.enabled = !locked;
             }
 
             Behaviour thirdPersonScript = player.GetComponent("ThirdPersonController") as Behaviour;
