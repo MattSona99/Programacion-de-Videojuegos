@@ -1,9 +1,10 @@
 using UnityEngine;
-using UnityEngine.Rendering; 
+using UnityEngine.Rendering;
 using System.Collections;
 using UnityEngine.InputSystem;
 using Unity.Cinemachine;
-using UnityEngine.EventSystems; 
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 
 public class MainMenuManager : MonoBehaviour
 {
@@ -19,6 +20,14 @@ public class MainMenuManager : MonoBehaviour
     [Header("Sub-Panels (Opzionali)")]
     public GameObject settingsPanel;
     public GameObject leaderboardPanel;
+
+    [Header("Pulsanti")]
+    [Tooltip("Pulsante \"Play\" mostrato solo al primo avvio. Disattivato dopo la prima transizione.")]
+    [SerializeField] private GameObject playButton;
+    [Tooltip("Pulsante \"Resume\" mostrato in pausa (dalla seconda apertura del menu in poi).")]
+    [SerializeField] private GameObject resumeButton;
+    [Tooltip("Pulsante \"Restart\" mostrato in pausa accanto a Resume. Ricarica Act_01.")]
+    [SerializeField] private GameObject restartButton;
     
     [Header("Impostazioni Animazioni UI")]
     [Tooltip("Durata in secondi dell'effetto sfumatura (Fade) dei pannelli laterali")]
@@ -33,6 +42,16 @@ public class MainMenuManager : MonoBehaviour
     [Header("Intro")]
     [Tooltip("Dialogo che parte al primo Play, dopo che la camera si è fermata sul player")]
     [SerializeField] private DialogueAsset introDialogue;
+
+    [Header("Blocco Esc durante gameplay")]
+    [Tooltip("Riferimenti opzionali: se assegnati, l'Esc verso il menu è bloccato mentre questi sono attivi")]
+    [SerializeField] private BookManager bookManager;
+    [SerializeField] private CinematicFallManager cinematicFallManager;
+    [SerializeField] private JammoGuideController jammoGuideController;
+
+    [Header("Impostazioni Livello")]
+    [Tooltip("Spunta questa casella se sei in un livello avanzato (es. Act_02) per saltare la schermata del titolo")]
+    public bool startDirectlyInGame = false;
 
     private bool isGameActive = false;
     private bool isTransitioning = false; 
@@ -61,7 +80,6 @@ public class MainMenuManager : MonoBehaviour
             originalCameraBlendTime = cameraBrain.DefaultBlend.Time;
         }
 
-        // Prepariamo i pannelli per l'animazione aggiungendo in automatico il CanvasGroup se manca
         if (settingsPanel != null)
         {
             settingsCG = settingsPanel.GetComponent<CanvasGroup>();
@@ -74,13 +92,46 @@ public class MainMenuManager : MonoBehaviour
             if (leaderboardCG == null) leaderboardCG = leaderboardPanel.AddComponent<CanvasGroup>();
         }
 
-        SetPlayerMovement(false);
-        CloseAllSubPanels(true); // Chiudiamo i sottomenu istantaneamente all'avvio
+        CloseAllSubPanels(true);
+
+        // --- LA NUOVA LOGICA ---
+        if (startDirectlyInGame)
+        {
+            // Se siamo in Act_02, diciamo al Manager che stiamo già giocando!
+            isGameActive = true;
+            isFirstPlay = false; // Saltiamo il dialogo iniziale
+
+            if (menuUIContainer != null) menuUIContainer.gameObject.SetActive(false);
+            if (menuCamera != null) menuCamera.SetActive(false);
+            if (menuBlurVolume != null) menuBlurVolume.weight = 0f;
+
+            // Sblocca il player e nascondi il mouse istantaneamente
+            SetPlayerMovement(true);
+        }
+        else
+        {
+            // Comportamento normale per Act_01 (Menu aperto all'avvio)
+            if (menuBlurVolume != null) menuBlurVolume.weight = 1f;
+            SetPlayerMovement(false);
+        }
+
+        ApplyPauseButtonsState();
+    }
+
+    private void ApplyPauseButtonsState()
+    {
+        bool showPlay = isFirstPlay;
+        if (playButton != null) playButton.SetActive(showPlay);
+        if (resumeButton != null) resumeButton.SetActive(!showPlay);
+        if (restartButton != null) restartButton.SetActive(!showPlay);
     }
 
     private void Update()
     {
         if (DialogueManager.Instance != null && DialogueManager.Instance.IsPlaying) return;
+        if (bookManager != null && bookManager.IsOpen) return;
+        if (cinematicFallManager != null && cinematicFallManager.IsPlaying) return;
+        if (jammoGuideController != null && jammoGuideController.IsWalking) return;
 
         if (!isTransitioning && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
@@ -119,6 +170,16 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
+    private IEnumerator LockCursorDeferred()
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            yield return new WaitForEndOfFrame();
+            Cursor.visible = false;
+            Cursor.lockState = CursorLockMode.Locked;
+        }
+    }
+
     // --- LOGICA SOTTOMENU CON ANIMAZIONE FADE ---
 
     public void ToggleSettingsPanel()
@@ -127,19 +188,16 @@ public class MainMenuManager : MonoBehaviour
 
         if (isSettingsOpen)
         {
-            // Se è aperto, chiudilo con l'animazione
             isSettingsOpen = false;
             if (settingsFadeCoroutine != null) StopCoroutine(settingsFadeCoroutine);
             settingsFadeCoroutine = StartCoroutine(FadePanel(settingsPanel, settingsCG, false));
         }
         else
         {
-            // Se è chiuso, aprilo con l'animazione
             isSettingsOpen = true;
             if (settingsFadeCoroutine != null) StopCoroutine(settingsFadeCoroutine);
             settingsFadeCoroutine = StartCoroutine(FadePanel(settingsPanel, settingsCG, true));
             
-            // Se la leaderboard è aperta, chiudiamola
             if (isLeaderboardOpen) ToggleLeaderboardPanel(); 
         }
     }
@@ -164,55 +222,53 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Chiude tutti i sottomenu. Se 'instant' è true, lo fa senza animazione.
-    /// </summary>
     private void CloseAllSubPanels(bool instant = false)
     {
-        if (isSettingsOpen)
+        // --- GESTIONE SETTINGS ---
+        isSettingsOpen = false;
+        if (settingsFadeCoroutine != null) StopCoroutine(settingsFadeCoroutine);
+        
+        if (instant) 
         {
-            isSettingsOpen = false;
-            if (settingsFadeCoroutine != null) StopCoroutine(settingsFadeCoroutine);
-            
-            if (instant) 
-            {
-                settingsPanel.SetActive(false);
-                if (settingsCG != null) settingsCG.alpha = 0f;
-            }
-            else settingsFadeCoroutine = StartCoroutine(FadePanel(settingsPanel, settingsCG, false));
+            if (settingsPanel != null) settingsPanel.SetActive(false);
+            if (settingsCG != null) settingsCG.alpha = 0f; 
+        }
+        else if (settingsPanel != null) 
+        {
+            settingsFadeCoroutine = StartCoroutine(FadePanel(settingsPanel, settingsCG, false));
         }
 
-        if (isLeaderboardOpen)
+        // --- GESTIONE LEADERBOARD ---
+        isLeaderboardOpen = false;
+        if (leaderboardFadeCoroutine != null) StopCoroutine(leaderboardFadeCoroutine);
+        
+        if (instant) 
         {
-            isLeaderboardOpen = false;
-            if (leaderboardFadeCoroutine != null) StopCoroutine(leaderboardFadeCoroutine);
-            
-            if (instant) 
-            {
-                leaderboardPanel.SetActive(false);
-                if (leaderboardCG != null) leaderboardCG.alpha = 0f;
-            }
-            else leaderboardFadeCoroutine = StartCoroutine(FadePanel(leaderboardPanel, leaderboardCG, false));
+            if (leaderboardPanel != null) leaderboardPanel.SetActive(false);
+            if (leaderboardCG != null) leaderboardCG.alpha = 0f; 
+        }
+        else if (leaderboardPanel != null)
+        {
+            leaderboardFadeCoroutine = StartCoroutine(FadePanel(leaderboardPanel, leaderboardCG, false));
         }
     }
 
-    // Coroutine magica che gestisce l'effetto dissolvenza
     private IEnumerator FadePanel(GameObject panel, CanvasGroup cg, bool fadeIn)
     {
         if (cg == null) 
         {
-            panel.SetActive(fadeIn); // Fallback di sicurezza
+            panel.SetActive(fadeIn);
             yield break;
         }
 
         if (fadeIn)
         {
             panel.SetActive(true);
-            cg.blocksRaycasts = true; // Permette di cliccare i pulsanti
+            cg.blocksRaycasts = true; 
         }
         else
         {
-            cg.blocksRaycasts = false; // Impedisce i click mentre il pannello sta scomparendo
+            cg.blocksRaycasts = false; 
         }
 
         float elapsedTime = 0f;
@@ -221,7 +277,7 @@ public class MainMenuManager : MonoBehaviour
 
         while (elapsedTime < panelFadeDuration)
         {
-            elapsedTime += Time.deltaTime;
+            elapsedTime += Time.unscaledDeltaTime;
             cg.alpha = Mathf.Lerp(startAlpha, targetAlpha, elapsedTime / panelFadeDuration);
             yield return null;
         }
@@ -230,7 +286,7 @@ public class MainMenuManager : MonoBehaviour
 
         if (!fadeIn)
         {
-            panel.SetActive(false); // Spegne l'oggetto completamente alla fine dell'uscita
+            panel.SetActive(false); 
         }
     }
 
@@ -238,17 +294,55 @@ public class MainMenuManager : MonoBehaviour
 
     public void PlayGame()
     {
-        if (isGameActive || isTransitioning) return; 
-        
-        // MODIFICATO: Chiudiamo i pannelli (con animazione) appena clicchi Play!
-        CloseAllSubPanels(false); 
+        if (isGameActive || isTransitioning) return;
+
+        Time.timeScale = 1f;
+
+        // RIMOZIONE FOCUS: Diciamo a Unity di "dimenticare" il tasto Play appena cliccato
+        if (EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        // FEEDBACK ISTANTANEO: Nascondiamo e blocchiamo il cursore subito
+        Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Locked;
+
+        // Se PlayGame arriva dal tasto Esc, lo stesso Esc fa rilasciare il lock
+        // del cursore (comportamento integrato dell'Editor): ri-affermiamo lo
+        // stato per i frame successivi a quello dell'Esc.
+        StartCoroutine(LockCursorDeferred());
+
+        CloseAllSubPanels(false);
 
         StartCoroutine(TransitionToGame());
+    }
+
+    public void ResumeGame()
+    {
+        PlayGame();
+    }
+
+    public void RestartGame()
+    {
+        if (isTransitioning) return;
+
+        // CRITICO: senza riportare timeScale a 1, la scena ricaricata
+        // nascerebbe ferma e il nuovo Start() non si sbloccherebbe.
+        Time.timeScale = 1f;
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
+
+        SceneManager.LoadScene("Act_01");
     }
 
     public void ReturnToMenu()
     {
         if (isTransitioning) return;
+
+        // FEEDBACK ISTANTANEO: Mostriamo il cursore subito quando si apre il menu
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
 
         StartCoroutine(TransitionToMenu());
     }
@@ -278,7 +372,6 @@ public class MainMenuManager : MonoBehaviour
 
         if (menuCamera != null) menuCamera.SetActive(false);
 
-        // Sul primo play teniamo il player bloccato fino alla fine del dialogo intro.
         if (!wasFirstPlay)
         {
             SetPlayerMovement(true);
@@ -290,7 +383,7 @@ public class MainMenuManager : MonoBehaviour
 
         while (elapsedTime < uiDuration)
         {
-            elapsedTime += Time.deltaTime;
+            elapsedTime += Time.unscaledDeltaTime;
             float t = elapsedTime / uiDuration;
             float smoothT = Mathf.SmoothStep(0f, 1f, t);
 
@@ -303,6 +396,7 @@ public class MainMenuManager : MonoBehaviour
 
         if (menuUIContainer != null) menuUIContainer.gameObject.SetActive(false);
 
+        // Fallback di sicurezza a fine transizione
         if (EventSystem.current != null)
         {
             EventSystem.current.SetSelectedGameObject(null);
@@ -313,6 +407,12 @@ public class MainMenuManager : MonoBehaviour
 
         isFirstPlay = false;
         isTransitioning = false;
+
+        if (wasFirstPlay)
+        {
+            if (playButton != null) playButton.SetActive(false);
+            ApplyPauseButtonsState();
+        }
 
         if (wasFirstPlay)
         {
@@ -340,7 +440,6 @@ public class MainMenuManager : MonoBehaviour
 
         SetPlayerMovement(false);
         
-        // Quando torniamo al menu principale (es. premendo Esc), assicuriamoci che i sottomenu siano puliti
         CloseAllSubPanels(true);
 
         if (cameraBrain != null) 
@@ -359,7 +458,7 @@ public class MainMenuManager : MonoBehaviour
 
         while (elapsedTime < duration)
         {
-            elapsedTime += Time.deltaTime;
+            elapsedTime += Time.unscaledDeltaTime;
             float t = elapsedTime / duration;
             float smoothT = Mathf.SmoothStep(0f, 1f, t);
 
@@ -370,7 +469,16 @@ public class MainMenuManager : MonoBehaviour
             yield return null;
         }
 
-        isTransitioning = false; 
+        ApplyPauseButtonsState();
+
+        if (!isFirstPlay && resumeButton != null && EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(resumeButton);
+        }
+
+        isTransitioning = false;
+
+        Time.timeScale = 0f;
     }
 
     private void SetPlayerMovement(bool canMove)
