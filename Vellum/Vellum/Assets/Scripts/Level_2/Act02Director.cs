@@ -27,6 +27,10 @@ public class Act02Director : MonoBehaviour
     [SerializeField] private DialogueAsset epilogueDialogue;
 
     [Header("Tempi")]
+    [Tooltip("Quanto resta inquadrato il player all'avvio della scena prima che la camera inizi a salire sulla statua.")]
+    [SerializeField] private float initialPauseOnPlayer = 1.0f;
+    [Tooltip("Durata del blend lento dalla camera del player a quella della statua (e ritorno).")]
+    [SerializeField] private float prologueBlendDuration = 2.0f;
     [Tooltip("Pausa tra la fine del dialogo prologo e l'inizio della prima wave.")]
     [SerializeField] private float pauseBeforeWavesStart = 0.5f;
     [Tooltip("Pausa tra la fine del dialogo epilogo e il caricamento della scena successiva.")]
@@ -62,11 +66,30 @@ public class Act02Director : MonoBehaviour
 
     private IEnumerator RunPrologue()
     {
+        // Frame 0: camera SUL PLAYER (PlayerFollowCamera vince con priority più alta),
+        // player bloccato manualmente: il blend iniziale verso la statua deve avvenire
+        // mentre il player è fermo, e PlayDialogue partirà solo dopo.
+        SetActiveCamera(gameplayCamera);
+        if (DialogueManager.Instance != null) DialogueManager.Instance.LockPlayer();
+
+        if (initialPauseOnPlayer > 0f) yield return new WaitForSeconds(initialPauseOnPlayer);
+
+        // Blend lento camera -> statua. Sovrascriviamo il DefaultBlend del Brain per
+        // la durata richiesta, poi lo ripristiniamo (pattern come MainMenuManager).
+        CinemachineBlendDefinition prevBlend = default;
+        bool blendOverridden = false;
+        if (_brain != null && prologueBlendDuration > 0f)
+        {
+            prevBlend = _brain.DefaultBlend;
+            _brain.DefaultBlend = new CinemachineBlendDefinition(prevBlend.Style, prologueBlendDuration);
+            blendOverridden = true;
+        }
+
         SetActiveCamera(prologueCamera);
         yield return WaitForBlend();
 
-        // DialogueManager.PlayDialogue blocca il player via SetPlayerLocked(true)
-        // e lo rilascia a fine dialogo. Niente da fare manualmente qui.
+        if (blendOverridden && _brain != null) _brain.DefaultBlend = prevBlend;
+
         if (prologueDialogue != null && DialogueManager.Instance != null)
         {
             bool done = false;
