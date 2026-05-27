@@ -43,6 +43,12 @@ public class Act02Director : MonoBehaviour
     [SerializeField] private int activePriority = 20;
     [SerializeField] private int idlePriority = 5;
 
+    [Header("HUD")]
+    [Tooltip("Elementi UI da rivelare alla fine del prologo (slide+fade) e nascondere all'inizio dell'epilogo. Tipicamente: HUDPlayer e StatueProgressBar.")]
+    [SerializeField] private HudReveal[] hudReveals;
+    [Tooltip("Attesa post-Hide HUD prima del blend camera epilogo, così l'animazione di uscita ha tempo di completarsi.")]
+    [SerializeField] private float hudHideWait = 0.6f;
+
     private CinemachineBrain _brain;
     private bool _epilogueQueued;
 
@@ -104,6 +110,10 @@ public class Act02Director : MonoBehaviour
         SetActiveCamera(gameplayCamera);
         yield return WaitForBlend();
 
+        // Mostra l'HUD prima che parta il combat: l'utente vede la sua
+        // healthbar e la statua salire mentre i nemici cominciano ad arrivare.
+        RevealHud();
+
         if (pauseBeforeWavesStart > 0f) yield return new WaitForSeconds(pauseBeforeWavesStart);
 
         if (waveManager != null) waveManager.StartNextWave();
@@ -112,6 +122,10 @@ public class Act02Director : MonoBehaviour
 
     private IEnumerator RunEpilogue()
     {
+        // Simmetria: l'HUD scompare prima del blend epilogo, con la stessa animazione al contrario.
+        HideHud();
+        if (hudHideWait > 0f) yield return new WaitForSeconds(hudHideWait);
+
         SetActiveCamera(prologueCamera);
         yield return WaitForBlend();
 
@@ -148,5 +162,19 @@ public class Act02Director : MonoBehaviour
     {
         if (_brain == null) yield break;
         yield return new WaitWhile(() => _brain.IsBlending);
+    }
+
+    private void RevealHud()
+    {
+        if (hudReveals == null) return;
+        for (int i = 0; i < hudReveals.Length; i++)
+            if (hudReveals[i] != null) hudReveals[i].Reveal();
+    }
+
+    private void HideHud()
+    {
+        if (hudReveals == null) return;
+        for (int i = 0; i < hudReveals.Length; i++)
+            if (hudReveals[i] != null) hudReveals[i].Hide();
     }
 }
