@@ -15,8 +15,12 @@ public class Act02Director : MonoBehaviour
 {
     [Header("Refs")]
     [SerializeField] private WaveManager waveManager;
-    [SerializeField] private CinemachineCamera prologueCamera;
-    [SerializeField] private CinemachineCamera gameplayCamera;
+    // CinemachineVirtualCameraBase è la classe base condivisa da Cinemachine 2
+    // (CinemachineVirtualCamera) e Cinemachine 3 (CinemachineCamera). Usarla qui
+    // permette di trascinare nel slot la PlayerFollowCamera di StarterAssets,
+    // che potrebbe essere ancora la versione legacy del prefab.
+    [SerializeField] private CinemachineVirtualCameraBase prologueCamera;
+    [SerializeField] private CinemachineVirtualCameraBase gameplayCamera;
 
     [Header("Dialoghi")]
     [SerializeField] private DialogueAsset prologueDialogue;
@@ -110,7 +114,7 @@ public class Act02Director : MonoBehaviour
         if (!string.IsNullOrEmpty(nextSceneName)) SceneManager.LoadScene(nextSceneName);
     }
 
-    private void SetActiveCamera(CinemachineCamera target)
+    private void SetActiveCamera(CinemachineVirtualCameraBase target)
     {
         if (target != null) target.Priority = activePriority;
         if (prologueCamera != null && prologueCamera != target) prologueCamera.Priority = idlePriority;
