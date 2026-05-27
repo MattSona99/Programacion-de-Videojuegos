@@ -94,18 +94,31 @@ public class DialogueManager : MonoBehaviour
     {
         float charDelay = 1f / Mathf.Max(charsPerSecond, 1f);
         int i = 0;
+        float timer = 0f;
 
         while (i < text.Length)
         {
+            // Controlliamo l'input OGNI SINGOLO FRAME, quindi non ne perdiamo neanche uno!
             if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
             {
                 if (bodyText != null) bodyText.text = text;
                 yield break;
             }
 
-            i++;
+            timer += Time.deltaTime;
+
+            // Se è passato abbastanza tempo, avanziamo con le lettere.
+            // Uso il while nel caso in cui charsPerSecond sia altissimo (permette di stampare più lettere nello stesso frame)
+            while (timer >= charDelay && i < text.Length)
+            {
+                i++;
+                timer -= charDelay;
+            }
+
             if (bodyText != null) bodyText.text = text.Substring(0, i);
-            yield return new WaitForSeconds(charDelay);
+
+            // Aspettiamo esattamente un frame per riprendere il ciclo e fare di nuovo il controllo del tasto
+            yield return null; 
         }
     }
 
@@ -141,32 +154,43 @@ public class DialogueManager : MonoBehaviour
         {
             if (locked)
             {
-                player.SendMessage("MoveInput", Vector2.zero, SendMessageOptions.DontRequireReceiver);
-                player.SendMessage("SprintInput", false, SendMessageOptions.DontRequireReceiver);
+                // Broadcast per colpire StarterAssetsInputs anche se è su un figlio del player
+                player.BroadcastMessage("MoveInput", Vector2.zero, SendMessageOptions.DontRequireReceiver);
+                player.BroadcastMessage("SprintInput", false, SendMessageOptions.DontRequireReceiver);
 
-                Animator anim = player.GetComponent<Animator>();
+                Animator anim = player.GetComponentInChildren<Animator>();
                 if (anim != null)
                 {
                     anim.SetFloat("Speed", 0f);
                     anim.SetFloat("MotionSpeed", 0f);
+
+                    // Forza l'animatore a Idle nello stesso frame, altrimenti il blend tree
+                    // continua a mostrare la corsa mentre la velocità si interpola a 0.
+                    anim.Play("Idle Walk Run Blend", 0, 0f);
+                    anim.Update(0f);
                 }
             }
 
             // Allinea con MainMenuManager.SetPlayerMovement: enable/disable del componente PlayerInput
             // (non Activate/Deactivate, perché potrebbe essere chiamato su un componente disabilitato dal menu)
-            var playerInput = player.GetComponent<PlayerInput>();
+            var playerInput = player.GetComponentInChildren<PlayerInput>();
             if (playerInput != null)
             {
                 playerInput.enabled = !locked;
             }
 
-            Behaviour thirdPersonScript = player.GetComponent("ThirdPersonController") as Behaviour;
-            Behaviour starterInputsScript = player.GetComponent("StarterAssetsInputs") as Behaviour;
-            Behaviour playerCombatScript = player.GetComponent("PlayerCombat") as Behaviour;
-
-            if (thirdPersonScript != null) thirdPersonScript.enabled = !locked;
-            if (starterInputsScript != null) starterInputsScript.enabled = !locked;
-            if (playerCombatScript != null) playerCombatScript.enabled = !locked;
+            // GetComponentsInChildren così becchiamo gli script anche se vivono su un figlio
+            MonoBehaviour[] allScripts = player.GetComponentsInChildren<MonoBehaviour>();
+            foreach (MonoBehaviour script in allScripts)
+            {
+                string scriptName = script.GetType().Name;
+                if (scriptName == "ThirdPersonController" ||
+                    scriptName == "StarterAssetsInputs" ||
+                    scriptName == "PlayerCombat")
+                {
+                    script.enabled = !locked;
+                }
+            }
         }
 
         // Cursor stays locked & hidden during dialogues (different from BookManager)
