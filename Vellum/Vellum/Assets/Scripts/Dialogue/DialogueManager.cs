@@ -37,6 +37,13 @@ public class DialogueManager : MonoBehaviour
         if (advanceHint != null) advanceHint.SetActive(false);
     }
 
+    // Esposti per registi esterni (es. Act02Director) che devono bloccare il
+    // player PRIMA del PlayDialogue — tipicamente durante un blend camera
+    // iniziale, quando il dialogo non è ancora partito ma il player non deve
+    // potersi muovere.
+    public void LockPlayer()   { SetPlayerLocked(true); }
+    public void UnlockPlayer() { SetPlayerLocked(false); }
+
     public void PlayDialogue(DialogueAsset dialogue, Action onComplete = null)
     {
         if (IsPlaying)
