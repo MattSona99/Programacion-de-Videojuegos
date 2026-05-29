@@ -46,6 +46,9 @@ public class BookManager : MonoBehaviour
         if (startAlreadyPickedUp)
         {
             _hasBeenPickedUp = true;
+            // Libro portato da un livello precedente: il dialogo di prima
+            // apertura è già avvenuto in quel livello, non va replicato qui.
+            _hasShownPostBookDialogue = true;
         }
 
         if (bookPanel != null)

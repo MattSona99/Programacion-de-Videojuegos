@@ -5,6 +5,7 @@ using UnityEngine.InputSystem;
 using Unity.Cinemachine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using TMPro;
 
 public class MainMenuManager : MonoBehaviour
 {
@@ -28,6 +29,14 @@ public class MainMenuManager : MonoBehaviour
     [SerializeField] private GameObject resumeButton;
     [Tooltip("Pulsante \"Restart\" mostrato in pausa accanto a Resume. Ricarica Act_01.")]
     [SerializeField] private GameObject restartButton;
+
+    [Header("Game Over")]
+    [Tooltip("Canvas \"Death Container\": nome + Save Score. Attivo solo alla morte del Player.")]
+    [SerializeField] private GameObject deathContainer;
+    [Tooltip("Campo nome dentro il Death Container, letto da SaveScore().")]
+    [SerializeField] private TMP_InputField nameInputField;
+    [Tooltip("Barre HUD (PlayerHUD, StatueProgressBar) da nascondere in dissolvenza alla morte del Player.")]
+    [SerializeField] private HudReveal[] hudHideOnDeath;
     
     [Header("Impostazioni Animazioni UI")]
     [Tooltip("Durata in secondi dell'effetto sfumatura (Fade) dei pannelli laterali")]
@@ -54,8 +63,9 @@ public class MainMenuManager : MonoBehaviour
     public bool startDirectlyInGame = false;
 
     private bool isGameActive = false;
-    private bool isTransitioning = false; 
-    private bool isFirstPlay = true; 
+    private bool isTransitioning = false;
+    private bool isFirstPlay = true;
+    private bool _isGameOver = false;
     
     private Vector2 originalMenuPosition;
     private float originalCameraBlendTime; 
@@ -65,8 +75,10 @@ public class MainMenuManager : MonoBehaviour
     private bool isLeaderboardOpen = false;
     private CanvasGroup settingsCG;
     private CanvasGroup leaderboardCG;
+    private CanvasGroup deathContainerCG;
     private Coroutine settingsFadeCoroutine;
     private Coroutine leaderboardFadeCoroutine;
+    private Coroutine _deathFadeCoroutine;
 
     private void Start()
     {
@@ -90,6 +102,12 @@ public class MainMenuManager : MonoBehaviour
         {
             leaderboardCG = leaderboardPanel.GetComponent<CanvasGroup>();
             if (leaderboardCG == null) leaderboardCG = leaderboardPanel.AddComponent<CanvasGroup>();
+        }
+
+        if (deathContainer != null)
+        {
+            deathContainerCG = deathContainer.GetComponent<CanvasGroup>();
+            if (deathContainerCG == null) deathContainerCG = deathContainer.AddComponent<CanvasGroup>();
         }
 
         CloseAllSubPanels(true);
@@ -120,10 +138,21 @@ public class MainMenuManager : MonoBehaviour
 
     private void ApplyPauseButtonsState()
     {
+        if (_isGameOver)
+        {
+            // Schermata di morte: solo Restart (niente Resume/Play) + Death Container.
+            if (playButton != null) playButton.SetActive(false);
+            if (resumeButton != null) resumeButton.SetActive(false);
+            if (restartButton != null) restartButton.SetActive(true);
+            if (deathContainer != null) deathContainer.SetActive(true);
+            return;
+        }
+
         bool showPlay = isFirstPlay;
         if (playButton != null) playButton.SetActive(showPlay);
         if (resumeButton != null) resumeButton.SetActive(!showPlay);
         if (restartButton != null) restartButton.SetActive(!showPlay);
+        if (deathContainer != null) deathContainer.SetActive(false);
     }
 
     private void Update()
@@ -132,6 +161,9 @@ public class MainMenuManager : MonoBehaviour
         if (bookManager != null && bookManager.IsOpen) return;
         if (cinematicFallManager != null && cinematicFallManager.IsPlaying) return;
         if (jammoGuideController != null && jammoGuideController.IsWalking) return;
+
+        // Da morto la schermata di Game Over resta: l'Esc non deve far "resume".
+        if (_isGameOver) return;
 
         if (!isTransitioning && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
@@ -323,6 +355,57 @@ public class MainMenuManager : MonoBehaviour
         PlayGame();
     }
 
+    // Chiamato dalla morte del Player (wirato da Inspector su Health.onDied /
+    // PlayerHealth.onPlayerDied). Apre il menu come schermata di Game Over:
+    // blocca il Player, mostra blur + timeScale=0 e il set di pulsanti morte
+    // (Restart + Salva Punteggio). TransitionToMenu chiama ApplyPauseButtonsState
+    // in coda, che con _isGameOver=true mostra il set corretto.
+    public void ShowGameOver()
+    {
+        if (_isGameOver) return;
+        _isGameOver = true;
+
+        SetPlayerMovement(false);
+
+        // Le barre HUD (vita Player, completamento statua) scompaiono in
+        // dissolvenza: la schermata di morte deve restare pulita.
+        if (hudHideOnDeath != null)
+        {
+            for (int i = 0; i < hudHideOnDeath.Length; i++)
+                if (hudHideOnDeath[i] != null) hudHideOnDeath[i].Hide();
+        }
+
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
+
+        // Il Death Container potrebbe essere stato dissolto da un SaveScore di
+        // una sessione precedente nello stesso play (improbabile, ma idempotente):
+        // ripristina l'alpha così TransitionToMenu lo riattiva pienamente visibile.
+        if (deathContainerCG != null) deathContainerCG.alpha = 1f;
+
+        StartCoroutine(TransitionToMenu());
+    }
+
+    // Placeholder: il sistema di punteggi non è ancora implementato. Legge il
+    // nome dal Death Container e lo logga; il campo diventa non-interattivo
+    // come feedback di "salvato".
+    public void SaveScore()
+    {
+        string playerName = (nameInputField != null && !string.IsNullOrWhiteSpace(nameInputField.text))
+            ? nameInputField.text.Trim()
+            : "Anonimo";
+
+        Debug.Log($"[Placeholder] Punteggio di '{playerName}' — salvataggio non ancora implementato.");
+
+        // Dissolvenza del Death Container: FadePanel lo disattiva a fine fade-out
+        // e gira su unscaledDeltaTime (funziona col gioco in pausa, timeScale=0).
+        if (deathContainer != null)
+        {
+            if (_deathFadeCoroutine != null) StopCoroutine(_deathFadeCoroutine);
+            _deathFadeCoroutine = StartCoroutine(FadePanel(deathContainer, deathContainerCG, false));
+        }
+    }
+
     public void RestartGame()
     {
         if (isTransitioning) return;
@@ -471,9 +554,11 @@ public class MainMenuManager : MonoBehaviour
 
         ApplyPauseButtonsState();
 
-        if (!isFirstPlay && resumeButton != null && EventSystem.current != null)
+        if (EventSystem.current != null)
         {
-            EventSystem.current.SetSelectedGameObject(resumeButton);
+            // In Game Over il focus va su Restart (Resume è nascosto); altrimenti su Resume.
+            GameObject focusTarget = _isGameOver ? restartButton : (!isFirstPlay ? resumeButton : null);
+            if (focusTarget != null) EventSystem.current.SetSelectedGameObject(focusTarget);
         }
 
         isTransitioning = false;

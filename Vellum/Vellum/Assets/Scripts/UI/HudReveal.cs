@@ -75,7 +75,10 @@ public class HudReveal : MonoBehaviour
 
         while (t < duration)
         {
-            t += Time.deltaTime;
+            // unscaledDeltaTime: l'Hide alla morte del Player gira con il gioco
+            // in pausa (timeScale=0). Reveal/Hide del prologo girano comunque a
+            // timeScale=1, dove scaled e unscaled coincidono.
+            t += Time.unscaledDeltaTime;
             float k = Mathf.Clamp01(t / duration);
             float eased = k * k * (3f - 2f * k);
             if (canvasGroup != null) canvasGroup.alpha = Mathf.Lerp(fromAlpha, targetAlpha, eased);
