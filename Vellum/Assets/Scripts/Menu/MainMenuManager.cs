@@ -8,42 +8,48 @@ using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using TMPro;
 
+/// <summary>
+/// Drives the main menu, the in-game pause menu, and the Game Over screen. Handles the
+/// camera/UI transitions (Cinemachine blend + slide/fade), locks/unlocks the Player, manages the
+/// settings/leaderboard sub-panels, hides/restores the HUD bars, and triggers the intro dialogue
+/// on first play. Esc toggles pause during gameplay (gated while dialogue/book/cinematics run).
+/// </summary>
 public class MainMenuManager : MonoBehaviour
 {
     [Header("Cameras")]
     public GameObject menuCamera;
-    [Tooltip("Trascina qui la Main Camera che contiene il Cinemachine Brain")]
-    public CinemachineBrain cameraBrain; 
+    [Tooltip("Drag the Main Camera that holds the Cinemachine Brain here")]
+    public CinemachineBrain cameraBrain;
 
     [Header("UI Elements")]
     public RectTransform menuUIContainer;
     public CanvasGroup menuCanvasGroup;
 
-    [Header("Sub-Panels (Opzionali)")]
+    [Header("Sub-Panels (Optional)")]
     public GameObject settingsPanel;
     public GameObject leaderboardPanel;
 
-    [Header("Pulsanti")]
-    [Tooltip("Pulsante \"Play\" mostrato solo al primo avvio. Disattivato dopo la prima transizione.")]
+    [Header("Buttons")]
+    [Tooltip("\"Play\" button shown only on first launch. Disabled after the first transition.")]
     [SerializeField] private GameObject playButton;
-    [Tooltip("Pulsante \"Resume\" mostrato in pausa (dalla seconda apertura del menu in poi).")]
+    [Tooltip("\"Resume\" button shown while paused (from the second menu open onward).")]
     [SerializeField] private GameObject resumeButton;
-    [Tooltip("Pulsante \"Restart\" mostrato in pausa accanto a Resume. Ricarica Act_01.")]
+    [Tooltip("\"Restart\" button shown while paused next to Resume. Reloads Act_01.")]
     [SerializeField] private GameObject restartButton;
 
     [Header("Game Over")]
-    [Tooltip("Canvas \"Death Container\": nome + Save Score. Attivo solo alla morte del Player.")]
+    [Tooltip("\"Death Container\" canvas: name + Save Score. Active only on Player death.")]
     [SerializeField] private GameObject deathContainer;
-    [Tooltip("Campo nome dentro il Death Container, letto da SaveScore().")]
+    [Tooltip("Name field inside the Death Container, read by SaveScore().")]
     [SerializeField] private TMP_InputField nameInputField;
-    [Tooltip("Numero massimo di caratteri inseribili nel campo nome.")]
+    [Tooltip("Maximum number of characters allowed in the name field.")]
     [SerializeField] private int nameCharacterLimit = 10;
-    [Tooltip("Barre HUD (PlayerHUD, StatueProgressBar, ...) da nascondere in dissolvenza quando si apre il menu (pausa Esc) e alla morte del Player; rientrano al resume.")]
+    [Tooltip("HUD bars (PlayerHUD, StatueProgressBar, ...) to fade out when the menu opens (Esc pause) and on Player death; they fade back in on resume.")]
     [FormerlySerializedAs("hudHideOnDeath")]
     [SerializeField] private HudReveal[] hudBars;
-    
-    [Header("Impostazioni Animazioni UI")]
-    [Tooltip("Durata in secondi dell'effetto sfumatura (Fade) dei pannelli laterali")]
+
+    [Header("UI animation settings")]
+    [Tooltip("Duration in seconds of the side panels' fade effect")]
     public float panelFadeDuration = 0.25f;
 
     [Header("Post Processing")]
@@ -53,17 +59,17 @@ public class MainMenuManager : MonoBehaviour
     public GameObject player;
 
     [Header("Intro")]
-    [Tooltip("Dialogo che parte al primo Play, dopo che la camera si è fermata sul player")]
+    [Tooltip("Dialogue played on the first Play, after the camera settles on the player")]
     [SerializeField] private DialogueAsset introDialogue;
 
-    [Header("Blocco Esc durante gameplay")]
-    [Tooltip("Riferimenti opzionali: se assegnati, l'Esc verso il menu è bloccato mentre questi sono attivi")]
+    [Header("Esc lock during gameplay")]
+    [Tooltip("Optional references: if assigned, Esc-to-menu is blocked while these are active")]
     [SerializeField] private BookManager bookManager;
     [SerializeField] private CinematicFallManager cinematicFallManager;
     [SerializeField] private JammoGuideController jammoGuideController;
 
-    [Header("Impostazioni Livello")]
-    [Tooltip("Spunta questa casella se sei in un livello avanzato (es. Act_02) per saltare la schermata del titolo")]
+    [Header("Level settings")]
+    [Tooltip("Tick this if you're in an advanced level (e.g. Act_02) to skip the title screen")]
     public bool startDirectlyInGame = false;
 
     private bool isGameActive = false;
@@ -74,7 +80,7 @@ public class MainMenuManager : MonoBehaviour
     private Vector2 originalMenuPosition;
     private float originalCameraBlendTime; 
 
-    // Variabili per gestire lo stato di apertura e le animazioni
+    // State for the sub-panels' open status and animations
     private bool isSettingsOpen = false;
     private bool isLeaderboardOpen = false;
     private CanvasGroup settingsCG;
@@ -83,7 +89,7 @@ public class MainMenuManager : MonoBehaviour
     private Coroutine settingsFadeCoroutine;
     private Coroutine leaderboardFadeCoroutine;
     private Coroutine _deathFadeCoroutine;
-    private bool[] _hudWasVisible; // stato delle barre HUD prima della pausa (per il restore al resume)
+    private bool[] _hudWasVisible; // HUD bars' state before the pause (for restore on resume)
 
     private void Start()
     {
@@ -120,23 +126,22 @@ public class MainMenuManager : MonoBehaviour
 
         CloseAllSubPanels(true);
 
-        // --- LA NUOVA LOGICA ---
         if (startDirectlyInGame)
         {
-            // Se siamo in Act_02, diciamo al Manager che stiamo già giocando!
+            // If we're in Act_02, tell the Manager we're already playing!
             isGameActive = true;
-            isFirstPlay = false; // Saltiamo il dialogo iniziale
+            isFirstPlay = false; // Skip the intro dialogue
 
             if (menuUIContainer != null) menuUIContainer.gameObject.SetActive(false);
             if (menuCamera != null) menuCamera.SetActive(false);
             if (menuBlurVolume != null) menuBlurVolume.weight = 0f;
 
-            // Sblocca il player e nascondi il mouse istantaneamente
+            // Unlock the player and hide the mouse instantly
             SetPlayerMovement(true);
         }
         else
         {
-            // Comportamento normale per Act_01 (Menu aperto all'avvio)
+            // Normal behavior for Act_01 (menu open at startup)
             if (menuBlurVolume != null) menuBlurVolume.weight = 1f;
             SetPlayerMovement(false);
         }
@@ -148,7 +153,7 @@ public class MainMenuManager : MonoBehaviour
     {
         if (_isGameOver)
         {
-            // Schermata di morte: solo Restart (niente Resume/Play) + Death Container.
+            // Death screen: only Restart (no Resume/Play) + Death Container.
             if (playButton != null) playButton.SetActive(false);
             if (resumeButton != null) resumeButton.SetActive(false);
             if (restartButton != null) restartButton.SetActive(true);
@@ -170,7 +175,7 @@ public class MainMenuManager : MonoBehaviour
         if (cinematicFallManager != null && cinematicFallManager.IsPlaying) return;
         if (jammoGuideController != null && jammoGuideController.IsWalking) return;
 
-        // Da morto la schermata di Game Over resta: l'Esc non deve far "resume".
+        // When dead the Game Over screen stays: Esc must not "resume".
         if (_isGameOver) return;
 
         if (!isTransitioning && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -220,8 +225,9 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
-    // --- LOGICA SOTTOMENU CON ANIMAZIONE FADE ---
+    // --- SUB-PANEL LOGIC WITH FADE ANIMATION ---
 
+    /// <summary>Opens/closes the settings panel with a fade (closes the leaderboard if open).</summary>
     public void ToggleSettingsPanel()
     {
         if (settingsPanel == null) return;
@@ -242,6 +248,7 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
+    /// <summary>Opens/closes the leaderboard panel with a fade (closes the settings if open).</summary>
     public void ToggleLeaderboardPanel()
     {
         if (leaderboardPanel == null) return;
@@ -264,7 +271,7 @@ public class MainMenuManager : MonoBehaviour
 
     private void CloseAllSubPanels(bool instant = false)
     {
-        // --- GESTIONE SETTINGS ---
+        // --- SETTINGS HANDLING ---
         isSettingsOpen = false;
         if (settingsFadeCoroutine != null) StopCoroutine(settingsFadeCoroutine);
         
@@ -278,7 +285,7 @@ public class MainMenuManager : MonoBehaviour
             settingsFadeCoroutine = StartCoroutine(FadePanel(settingsPanel, settingsCG, false));
         }
 
-        // --- GESTIONE LEADERBOARD ---
+        // --- LEADERBOARD HANDLING ---
         isLeaderboardOpen = false;
         if (leaderboardFadeCoroutine != null) StopCoroutine(leaderboardFadeCoroutine);
         
@@ -332,25 +339,25 @@ public class MainMenuManager : MonoBehaviour
 
     // ------------------------------
 
+    /// <summary>Starts/resumes gameplay: locks the cursor and runs the menu→game transition. Wired to the Play/Resume buttons.</summary>
     public void PlayGame()
     {
         if (isGameActive || isTransitioning) return;
 
         Time.timeScale = 1f;
 
-        // RIMOZIONE FOCUS: Diciamo a Unity di "dimenticare" il tasto Play appena cliccato
+        // CLEAR FOCUS: tell Unity to "forget" the Play button just clicked
         if (EventSystem.current != null)
         {
             EventSystem.current.SetSelectedGameObject(null);
         }
 
-        // FEEDBACK ISTANTANEO: Nascondiamo e blocchiamo il cursore subito
+        // INSTANT FEEDBACK: hide and lock the cursor right away
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
 
-        // Se PlayGame arriva dal tasto Esc, lo stesso Esc fa rilasciare il lock
-        // del cursore (comportamento integrato dell'Editor): ri-affermiamo lo
-        // stato per i frame successivi a quello dell'Esc.
+        // If PlayGame comes from the Esc key, that same Esc releases the cursor lock
+        // (built-in Editor behavior): re-assert the state for the frames after the Esc.
         StartCoroutine(LockCursorDeferred());
 
         CloseAllSubPanels(false);
@@ -358,16 +365,18 @@ public class MainMenuManager : MonoBehaviour
         StartCoroutine(TransitionToGame());
     }
 
+    /// <summary>Alias of <see cref="PlayGame"/> for the Resume button.</summary>
     public void ResumeGame()
     {
         PlayGame();
     }
 
-    // Chiamato dalla morte del Player (wirato da Inspector su Health.onDied /
-    // PlayerHealth.onPlayerDied). Apre il menu come schermata di Game Over:
-    // blocca il Player, mostra blur + timeScale=0 e il set di pulsanti morte
-    // (Restart + Salva Punteggio). TransitionToMenu chiama ApplyPauseButtonsState
-    // in coda, che con _isGameOver=true mostra il set corretto.
+    /// <summary>
+    /// Called on Player death (wired in the Inspector to Health.onDied / PlayerHealth.onPlayerDied).
+    /// Opens the menu as a Game Over screen: locks the Player, shows blur + timeScale=0 and the
+    /// death button set (Restart + Save Score). TransitionToMenu calls ApplyPauseButtonsState
+    /// afterward, which with _isGameOver=true shows the correct set.
+    /// </summary>
     public void ShowGameOver()
     {
         if (_isGameOver) return;
@@ -375,33 +384,34 @@ public class MainMenuManager : MonoBehaviour
 
         SetPlayerMovement(false);
 
-        // Le barre HUD scompaiono in dissolvenza (la schermata di morte deve
-        // restare pulita): ci pensa HideHudBars() dentro TransitionToMenu().
+        // The HUD bars fade out (the death screen must stay clean):
+        // HideHudBars() inside TransitionToMenu() handles it.
 
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
 
-        // Il Death Container potrebbe essere stato dissolto da un SaveScore di
-        // una sessione precedente nello stesso play (improbabile, ma idempotente):
-        // ripristina l'alpha così TransitionToMenu lo riattiva pienamente visibile.
+        // The Death Container may have been faded out by a SaveScore from a previous
+        // session in the same play (unlikely, but idempotent): restore the alpha so
+        // TransitionToMenu re-enables it fully visible.
         if (deathContainerCG != null) deathContainerCG.alpha = 1f;
 
         StartCoroutine(TransitionToMenu());
     }
 
-    // Placeholder: il sistema di punteggi non è ancora implementato. Legge il
-    // nome dal Death Container e lo logga; il campo diventa non-interattivo
-    // come feedback di "salvato".
+    /// <summary>
+    /// Placeholder: the scoring system isn't implemented yet. Reads the name from the Death
+    /// Container and logs it; the field fades out as "saved" feedback.
+    /// </summary>
     public void SaveScore()
     {
         string playerName = (nameInputField != null && !string.IsNullOrWhiteSpace(nameInputField.text))
             ? nameInputField.text.Trim()
-            : "Anonimo";
+            : "Anonymous";
 
-        Debug.Log($"[Placeholder] Punteggio di '{playerName}' — salvataggio non ancora implementato.");
+        Debug.Log($"[Placeholder] Score for '{playerName}' — saving not implemented yet.");
 
-        // Dissolvenza del Death Container: FadePanel lo disattiva a fine fade-out
-        // e gira su unscaledDeltaTime (funziona col gioco in pausa, timeScale=0).
+        // Fade out the Death Container: FadePanel disables it at the end of the fade-out
+        // and runs on unscaledDeltaTime (works with the game paused, timeScale=0).
         if (deathContainer != null)
         {
             if (_deathFadeCoroutine != null) StopCoroutine(_deathFadeCoroutine);
@@ -409,12 +419,13 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
+    /// <summary>Restarts the game by reloading Act_01 (resets timeScale and cursor first). Wired to the Restart button.</summary>
     public void RestartGame()
     {
         if (isTransitioning) return;
 
-        // CRITICO: senza riportare timeScale a 1, la scena ricaricata
-        // nascerebbe ferma e il nuovo Start() non si sbloccherebbe.
+        // CRITICAL: without restoring timeScale to 1, the reloaded scene would start
+        // frozen and the new Start() wouldn't unlock.
         Time.timeScale = 1f;
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
@@ -422,17 +433,19 @@ public class MainMenuManager : MonoBehaviour
         SceneManager.LoadScene("Act_01");
     }
 
+    /// <summary>Opens the pause menu (game→menu transition). Wired to Esc and to in-game menu buttons.</summary>
     public void ReturnToMenu()
     {
         if (isTransitioning) return;
 
-        // FEEDBACK ISTANTANEO: Mostriamo il cursore subito quando si apre il menu
+        // INSTANT FEEDBACK: show the cursor right away when the menu opens
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
 
         StartCoroutine(TransitionToMenu());
     }
 
+    /// <summary>Quits the application (stops Play mode in the Editor).</summary>
     public void QuitGame()
     {
         Application.Quit();
@@ -461,9 +474,9 @@ public class MainMenuManager : MonoBehaviour
         if (!wasFirstPlay)
         {
             SetPlayerMovement(true);
-            // Resume da pausa: le barre HUD rientrano in dissolvenza (solo quelle
-            // che erano visibili prima della pausa). Sul first play NON le rivelo:
-            // ci pensa il regista di scena dopo il prologo (es. Act02Director).
+            // Resume from pause: the HUD bars fade back in (only those that were visible
+            // before the pause). On first play I do NOT reveal them: the scene director
+            // handles it after the prologue (e.g. Act02Director).
             RevealHudBars();
         }
 
@@ -486,7 +499,7 @@ public class MainMenuManager : MonoBehaviour
 
         if (menuUIContainer != null) menuUIContainer.gameObject.SetActive(false);
 
-        // Fallback di sicurezza a fine transizione
+        // Safety fallback at the end of the transition
         if (EventSystem.current != null)
         {
             EventSystem.current.SetSelectedGameObject(null);
@@ -530,8 +543,8 @@ public class MainMenuManager : MonoBehaviour
 
         SetPlayerMovement(false);
 
-        // Le barre HUD sfumano via mentre appare il menu (pausa Esc o morte):
-        // così non restano sopra il menu. Lo stato viene ricordato per il resume.
+        // The HUD bars fade away while the menu appears (Esc pause or death):
+        // so they don't linger over the menu. The state is remembered for resume.
         HideHudBars();
 
         CloseAllSubPanels(true);
@@ -567,7 +580,7 @@ public class MainMenuManager : MonoBehaviour
 
         if (EventSystem.current != null)
         {
-            // In Game Over il focus va su Restart (Resume è nascosto); altrimenti su Resume.
+            // In Game Over the focus goes to Restart (Resume is hidden); otherwise to Resume.
             GameObject focusTarget = _isGameOver ? restartButton : (!isFirstPlay ? resumeButton : null);
             if (focusTarget != null) EventSystem.current.SetSelectedGameObject(focusTarget);
         }
@@ -577,7 +590,7 @@ public class MainMenuManager : MonoBehaviour
         Time.timeScale = 0f;
     }
 
-    // Snapshot della visibilità corrente e fade-out di tutte le barre HUD.
+    // Snapshot the current visibility and fade out all HUD bars.
     private void HideHudBars()
     {
         if (hudBars == null) return;
@@ -592,7 +605,7 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
-    // Fade-in solo delle barre che erano visibili prima della pausa.
+    // Fade in only the bars that were visible before the pause.
     private void RevealHudBars()
     {
         if (hudBars == null || _hudWasVisible == null) return;
