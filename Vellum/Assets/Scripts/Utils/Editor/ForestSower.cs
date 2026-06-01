@@ -1,67 +1,82 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEditor;
 
+/// <summary>
+/// Editor utility that scatters tree prefabs in a ring around this object, snapping each
+/// to the terrain via a downward raycast and randomizing rotation and scale. Run from the
+/// component's context menu in the Inspector.
+/// </summary>
 public class ForestSower : MonoBehaviour
 {
-    [Header("Asset Alberi")]
-    public GameObject[] prefabsAlberi;
+    [Header("Tree Assets")]
+    [FormerlySerializedAs("prefabsAlberi")]
+    public GameObject[] treePrefabs;
 
-    [Header("Impostazioni Cerchio")]
-    public float raggioMinimo = 10f;
-    public float raggioMassimo = 25f;
-    public int quantita = 100;
+    [Header("Ring Settings")]
+    [FormerlySerializedAs("raggioMinimo")]
+    public float minRadius = 10f;
+    [FormerlySerializedAs("raggioMassimo")]
+    public float maxRadius = 25f;
+    [FormerlySerializedAs("quantita")]
+    public int count = 100;
 
-    [Header("Variazioni")]
-    public float scalaMinima = 0.8f;
-    public float scalaMassima = 1.5f;
+    [Header("Variations")]
+    [FormerlySerializedAs("scalaMinima")]
+    public float minScale = 0.8f;
+    [FormerlySerializedAs("scalaMassima")]
+    public float maxScale = 1.5f;
 
-    [Header("Filtro Terreno")]
-    [Tooltip("Inserisci qui il layer del terreno così il laser ignora alberi e player")]
-    public LayerMask layerTerreno;
+    [Header("Terrain Filter")]
+    [Tooltip("Set the terrain layer here so the raycast ignores trees and the player")]
+    [FormerlySerializedAs("layerTerreno")]
+    public LayerMask terrainLayer;
 
-    [ContextMenu("Genera Foresta Permanente")]
-    public void GeneraForesta()
+    /// <summary>Instantiates <see cref="count"/> tree prefabs in the ring, snapped to the terrain.</summary>
+    [ContextMenu("Generate Permanent Forest")]
+    public void GenerateForest()
     {
-        if (prefabsAlberi.Length == 0) return;
+        if (treePrefabs.Length == 0) return;
 
-        for (int i = 0; i < quantita; i++)
+        for (int i = 0; i < count; i++)
         {
-            float angolo = Random.Range(0f, Mathf.PI * 2);
-            float distanza = Mathf.Sqrt(Random.Range(raggioMinimo * raggioMinimo, raggioMassimo * raggioMassimo));
-            
-            Vector3 posizioneBase = transform.position + new Vector3(
-                Mathf.Cos(angolo) * distanza,
-                0, 
-                Mathf.Sin(angolo) * distanza
+            float angle = Random.Range(0f, Mathf.PI * 2);
+            float distance = Mathf.Sqrt(Random.Range(minRadius * minRadius, maxRadius * maxRadius));
+
+            Vector3 basePosition = transform.position + new Vector3(
+                Mathf.Cos(angle) * distance,
+                0,
+                Mathf.Sin(angle) * distance
             );
 
-            Vector3 puntoInCielo = new Vector3(posizioneBase.x, 50f, posizioneBase.z);
-            
-            // IL LASER ORA USA IL FILTRO (layerTerreno)
-            if (Physics.Raycast(puntoInCielo, Vector3.down, out RaycastHit hit, 100f, layerTerreno))
+            Vector3 skyPoint = new Vector3(basePosition.x, 50f, basePosition.z);
+
+            // The raycast now uses the terrain filter (terrainLayer)
+            if (Physics.Raycast(skyPoint, Vector3.down, out RaycastHit hit, 100f, terrainLayer))
             {
-                posizioneBase.y = hit.point.y;
+                basePosition.y = hit.point.y;
             }
             else
             {
-                // Se il laser non tocca il terreno (es. finisce fuori mappa), annulla questo fiore
-                continue; 
+                // If the ray misses the terrain (e.g. off-map), skip this instance
+                continue;
             }
 
-            GameObject alberoScelto = prefabsAlberi[Random.Range(0, prefabsAlberi.Length)];
-            GameObject nuovoAlbero = (GameObject)PrefabUtility.InstantiatePrefab(alberoScelto);
-            
-            nuovoAlbero.transform.position = posizioneBase;
-            nuovoAlbero.transform.rotation = Quaternion.Euler(0, Random.Range(0, 360), 0);
-            nuovoAlbero.transform.localScale = Vector3.one * Random.Range(scalaMinima, scalaMassima);
-            nuovoAlbero.transform.parent = this.transform;
+            GameObject chosenTree = treePrefabs[Random.Range(0, treePrefabs.Length)];
+            GameObject newTree = (GameObject)PrefabUtility.InstantiatePrefab(chosenTree);
+
+            newTree.transform.position = basePosition;
+            newTree.transform.rotation = Quaternion.Euler(0, Random.Range(0, 360), 0);
+            newTree.transform.localScale = Vector3.one * Random.Range(minScale, maxScale);
+            newTree.transform.parent = this.transform;
         }
-        
-        Debug.Log("Generazione intelligente completata!");
+
+        Debug.Log("Smart generation complete!");
     }
 
-    [ContextMenu("Pulisci Tutto")]
-    public void Pulisci()
+    /// <summary>Removes every generated child object.</summary>
+    [ContextMenu("Clear All")]
+    public void Clear()
     {
         while (transform.childCount > 0)
         {

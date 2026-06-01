@@ -1,85 +1,92 @@
 using UnityEngine;
 
+/// <summary>
+/// Editor utility that procedurally spawns the Act 1 puzzle tile grid over a floor Plane,
+/// and an optional rounded decorative ring of mesh-only tiles around it. Triggered from
+/// the component's context menu in the Inspector.
+/// </summary>
 public class TileGridGenerator : MonoBehaviour
 {
-    [Header("Impostazioni")]
-    [Tooltip("Trascina qui il Prefab della tua PuzzleTile")]
+    [Header("Settings")]
+    [Tooltip("Drag your PuzzleTile prefab here")]
     public GameObject tilePrefab;
-    
-    [Tooltip("Trascina qui il tuo Plane (il pavimento da coprire)")]
+
+    [Tooltip("Drag your Plane here (the floor to cover)")]
     public Transform floorPlane;
 
-    [Tooltip("La dimensione della singola tile (Se la tua tile ha Scale X=2 e Z=2, scrivi 2)")]
+    [Tooltip("Size of a single tile (if your tile has Scale X=2 and Z=2, enter 2)")]
     public float tileSize = 2f;
 
-    [Header("Anello Decorativo")]
-    [Tooltip("Prefab della tile decorativa: solo mesh+materiale, niente PathTile/collider. Verra' generato attorno al puzzle.")]
+    [Header("Decorative Ring")]
+    [Tooltip("Decorative tile prefab: mesh+material only, no PathTile/collider. Generated around the puzzle.")]
     public GameObject decorativeTilePrefab;
 
-    [Tooltip("Numero di anelli concentrici di tile decorative attorno alla griglia del puzzle.")]
+    [Tooltip("Number of concentric rings of decorative tiles around the puzzle grid.")]
     public int decorativeRings = 30;
 
-    // Questa parolina magica "[ContextMenu]" ci permette di avviare il codice cliccando col tasto destro sullo script!
-    [ContextMenu("Genera Griglia di Tile!")]
+    /// <summary>Spawns the full grid of playable puzzle tiles over the floor Plane.</summary>
+    // The "[ContextMenu]" attribute lets us run this by right-clicking the script in the Inspector.
+    [ContextMenu("Generate Tile Grid!")]
     public void GenerateGrid()
     {
         if (tilePrefab == null || floorPlane == null)
         {
-            Debug.LogError("Attenzione: Manca il Prefab o il Plane di riferimento!");
+            Debug.LogError("Warning: missing the reference Prefab or Plane!");
             return;
         }
 
-        // 1. Calcoliamo la grandezza in metri del tuo Plane.
-        // Un Plane standard in Unity con Scale 1 è grande 10x10 metri. 
-        // Con Scale 10x10, sarà grande 100x100 metri.
+        // 1. Compute the Plane size in metres.
+        // A standard Unity Plane at Scale 1 is 10x10 metres.
+        // At Scale 10x10 it is 100x100 metres.
         float planeWidth = floorPlane.localScale.x * 6f;
-        float planeLength = floorPlane.localScale.z * 6f; // Z è la profondità per i pavimenti
+        float planeLength = floorPlane.localScale.z * 6f; // Z is the depth for floors
 
-        // Calcoliamo quante righe e colonne ci stanno
+        // Compute how many rows and columns fit
         int columns = Mathf.RoundToInt(planeWidth / tileSize);
         int rows = Mathf.RoundToInt(planeLength / tileSize);
 
-        // 2. Calcoliamo il punto d'angolo in alto a sinistra da cui iniziare a stampare le tile
+        // 2. Compute the top-left corner point to start laying out the tiles from
         Vector3 startPos = floorPlane.position - new Vector3(planeWidth / 2f, 0f, planeLength / 2f);
-        // Spostiamo il centro per allinearlo al centro della prima tile
+        // Shift by half a tile to align with the centre of the first tile
         startPos += new Vector3(tileSize / 2f, 0f, tileSize / 2f);
 
-        // 3. Creiamo una cartella "Contenitore" nella Hierarchy per non fare confusione con migliaia di oggetti
+        // 3. Create a container in the Hierarchy to avoid cluttering it with thousands of objects
         GameObject gridContainer = new GameObject("TileGrid_Container");
         gridContainer.transform.position = floorPlane.position;
 
-        // 4. Creiamo la griglia con un doppio ciclo!
+        // 4. Build the grid with a double loop
         for (int x = 0; x < columns; x++)
         {
             for (int z = 0; z < rows; z++)
             {
-                // Calcoliamo la posizione esatta della singola tile
+                // Compute the exact position of the single tile
                 Vector3 spawnPosition = startPos + new Vector3(x * tileSize, floorPlane.position.y, z * tileSize);
 
-                // Instanziamo la tile
+                // Instantiate the tile
                 GameObject newTile = Instantiate(tilePrefab, spawnPosition, Quaternion.identity);
-                
-                // Mettiamola nel contenitore e diamole un nome ordinato
+
+                // Put it in the container and give it an ordered name
                 newTile.transform.SetParent(gridContainer.transform);
                 newTile.name = $"Tile_{x}_{z}";
             }
         }
 
-        Debug.Log($"Fatto! Ho generato {columns * rows} Tile.");
+        Debug.Log($"Done! Generated {columns * rows} tiles.");
     }
 
-    [ContextMenu("Genera Anello Decorativo!")]
+    /// <summary>Spawns a rounded decorative ring of mesh-only tiles around the puzzle grid.</summary>
+    [ContextMenu("Generate Decorative Ring!")]
     public void GenerateDecorativeRing()
     {
         if (decorativeTilePrefab == null || floorPlane == null)
         {
-            Debug.LogError("Attenzione: Manca il Prefab decorativo o il Plane di riferimento!");
+            Debug.LogError("Warning: missing the decorative Prefab or the reference Plane!");
             return;
         }
 
         if (decorativeRings <= 0)
         {
-            Debug.LogWarning("decorativeRings <= 0: nessuna tile da generare.");
+            Debug.LogWarning("decorativeRings <= 0: no tiles to generate.");
             return;
         }
 
@@ -110,12 +117,12 @@ public class TileGridGenerator : MonoBehaviour
         {
             for (int z = 0; z < outerRows; z++)
             {
-                // 1. Salta la zona interna del puzzle
+                // 1. Skip the inner puzzle area
                 bool insidePuzzle = x >= innerXMin && x < innerXMax && z >= innerZMin && z < innerZMax;
                 if (insidePuzzle) continue;
 
-                // --- INIZIO MAGIA DEGLI ANGOLI ARROTONDATI ---
-                // 2. Calcoliamo di quanti "passi" siamo lontani dal puzzle sui due assi
+                // --- Rounded-corner logic ---
+                // 2. Compute how many "steps" we are away from the puzzle on each axis
                 float dx = 0;
                 if (x < innerXMin) dx = innerXMin - x;
                 else if (x >= innerXMax) dx = x - (innerXMax - 1);
@@ -124,13 +131,13 @@ public class TileGridGenerator : MonoBehaviour
                 if (z < innerZMin) dz = innerZMin - z;
                 else if (z >= innerZMax) dz = z - (innerZMax - 1);
 
-                // 3. Teorema di Pitagora: calcoliamo la distanza reale dall'angolo del puzzle!
+                // 3. Pythagoras: the real distance from the puzzle corner
                 float distance = Mathf.Sqrt(dx * dx + dz * dz);
 
-                // 4. Se la distanza è maggiore dei nostri anelli, tagliamo la tile!
-                // Aggiungiamo 0.5f per far venire la curva più morbida e non "mangiare" troppo bordo.
+                // 4. If the distance exceeds our ring count, skip the tile.
+                // Add 0.5f for a softer curve that doesn't eat too much of the border.
                 if (distance > decorativeRings + 0.5f) continue;
-                // --- FINE MAGIA ---
+                // --- end rounded-corner logic ---
 
                 Vector3 spawnPosition = startPos + new Vector3(x * tileSize, floorPlane.position.y, z * tileSize);
 
@@ -143,6 +150,6 @@ public class TileGridGenerator : MonoBehaviour
             }
         }
 
-        Debug.Log($"Generato anello decorativo ARROTONDATO con {count} tile.");
+        Debug.Log($"Generated rounded decorative ring with {count} tiles.");
     }
 }

@@ -5,18 +5,20 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-// Utility Editor per gli screenshot.
-//   Tools > Capture Scene View   (Ctrl/Cmd+Shift+K) → ESATTAMENTE ciò che vedi nel
-//       pannello Scene: stessa inquadratura/zoom (WYSIWYG), reso ad alta risoluzione
-//       (altezza 1080, larghezza proporzionale al pannello → niente "rimpicciolito").
-//   Tools > Capture Game Camera 1920x1080  (Ctrl/Cmd+Shift+J) → la Main Camera a 1080p
-//       (come si vede in game).
-//
-// Il progetto è URP: si usa la render request della SRP (camera.Render() darebbe
-// schermo nero). Salva in <Progetto>/Screenshots/.
+/// <summary>
+/// Editor screenshot utility.
+///   Tools &gt; Capture Scene View   (Ctrl/Cmd+Shift+K) → EXACTLY what you see in the
+///       Scene panel: same framing/zoom (WYSIWYG), high-resolution render
+///       (height 1080, width proportional to the panel → no "shrunk" look).
+///   Tools &gt; Capture Game Camera 1920x1080  (Ctrl/Cmd+Shift+J) → the Main Camera at 1080p
+///       (as seen in game).
+///
+/// The project is URP: it uses the SRP render request (camera.Render() would give a
+/// black screen). Saves to &lt;Project&gt;/Screenshots/.
+/// </summary>
 public static class SceneViewCapture
 {
-    // Altezza base del PNG della Scene view; la larghezza segue il rapporto del pannello.
+    // Base height of the Scene view PNG; the width follows the panel's aspect ratio.
     private const int SCENE_HEIGHT = 1080;
 
     [MenuItem("Tools/Capture Scene View %#k")]
@@ -25,13 +27,13 @@ public static class SceneViewCapture
         SceneView sv = SceneView.lastActiveSceneView;
         if (sv == null || sv.camera == null)
         {
-            Debug.LogWarning("[SceneViewCapture] Nessuna Scene view attiva: clicca il pannello Scene e riprova.");
+            Debug.LogWarning("[SceneViewCapture] No active Scene view: click the Scene panel and try again.");
             return;
         }
 
         Camera cam = sv.camera;
-        // Rapporto REALE del pannello Scene: così l'immagine ha la stessa
-        // inquadratura che vedi (non forziamo l'aspect → niente zoom-out).
+        // The REAL aspect of the Scene panel: so the image keeps the same framing
+        // you see (we don't force the aspect → no zoom-out).
         float aspect = cam.pixelHeight > 0 ? (float)cam.pixelWidth / cam.pixelHeight : 16f / 9f;
         int width = Mathf.Max(1, Mathf.RoundToInt(SCENE_HEIGHT * aspect));
 
@@ -44,7 +46,7 @@ public static class SceneViewCapture
         Camera cam = Camera.main;
         if (cam == null)
         {
-            Debug.LogWarning("[SceneViewCapture] Nessuna Camera con tag 'MainCamera' in scena.");
+            Debug.LogWarning("[SceneViewCapture] No Camera tagged 'MainCamera' in the scene.");
             return;
         }
         Capture(cam, 1920, 1080, overrideAspect: true, label: "GameCamera");
@@ -61,11 +63,11 @@ public static class SceneViewCapture
 
         try
         {
-            // overrideAspect=true (Game cam): imponiamo 16:9. false (Scene): lasciamo
-            // l'aspect del pannello, già coerente con width/height calcolati sopra.
+            // overrideAspect=true (Game cam): force 16:9. false (Scene): keep the
+            // panel's aspect, already consistent with the width/height computed above.
             if (overrideAspect) cam.aspect = (float)width / height;
 
-            // URP/HDRP: render attraverso la pipeline (camera.Render() darebbe nero).
+            // URP/HDRP: render through the pipeline (camera.Render() would give black).
             var request = new RenderPipeline.StandardRequest { destination = rt };
             if (RenderPipeline.SupportsRenderRequest(cam, request))
             {
@@ -73,7 +75,7 @@ public static class SceneViewCapture
             }
             else
             {
-                cam.targetTexture = rt; // fallback Built-in
+                cam.targetTexture = rt; // Built-in fallback
                 cam.Render();
                 cam.targetTexture = prevTarget;
             }
@@ -98,7 +100,7 @@ public static class SceneViewCapture
         File.WriteAllBytes(path, image.EncodeToPNG());
         UnityEngine.Object.DestroyImmediate(image);
 
-        Debug.Log($"[SceneViewCapture] {width}x{height} salvato: {path}");
+        Debug.Log($"[SceneViewCapture] {width}x{height} saved: {path}");
         EditorUtility.RevealInFinder(path);
     }
 }

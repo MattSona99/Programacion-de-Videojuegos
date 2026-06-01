@@ -4,6 +4,11 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
+/// <summary>
+/// Editor menu tool that wires each <see cref="PathTile"/>'s 'solidCollider' field to its
+/// single non-trigger BoxCollider in the open scene. Idempotent: skips tiles already linked
+/// and flags anomalies (missing/multiple colliders). Registers a single Undo group.
+/// </summary>
 public static class PathTileSetupTool
 {
     private const string MENU_PATH = "Tools/Vellum/Setup PathTile Solid Colliders";
@@ -14,7 +19,7 @@ public static class PathTileSetupTool
         PathTile[] tiles = Object.FindObjectsByType<PathTile>(FindObjectsSortMode.None);
         if (tiles.Length == 0)
         {
-            Debug.LogWarning("[PathTileSetupTool] Nessuna PathTile in scena. Apri la scena con il puzzle e rilancia.");
+            Debug.LogWarning("[PathTileSetupTool] No PathTile in the scene. Open the puzzle scene and run again.");
             return;
         }
 
@@ -30,8 +35,8 @@ public static class PathTileSetupTool
         {
             if (tile == null) continue;
 
-            // Raccogliamo SOLO i BoxCollider non-trigger presenti sul GameObject della tile.
-            // Niente AddComponent: la scena ha già il pavimento fisico per ogni tile.
+            // Collect ONLY the non-trigger BoxColliders on the tile's GameObject.
+            // No AddComponent: the scene already has the physical floor for each tile.
             List<BoxCollider> nonTriggerColliders = new List<BoxCollider>();
             foreach (BoxCollider bc in tile.GetComponents<BoxCollider>())
             {
@@ -42,12 +47,12 @@ public static class PathTileSetupTool
             SerializedProperty prop = so.FindProperty("solidCollider");
             if (prop == null)
             {
-                Debug.LogError($"[PathTileSetupTool] {tile.name}: campo 'solidCollider' non trovato sullo script PathTile.", tile);
+                Debug.LogError($"[PathTileSetupTool] {tile.name}: field 'solidCollider' not found on the PathTile script.", tile);
                 skippedAnomaly++;
                 continue;
             }
 
-            // Idempotenza: già linkato a un collider non-trigger valido sullo stesso GO?
+            // Idempotency: already linked to a valid non-trigger collider on the same GO?
             Object current = prop.objectReferenceValue;
             if (current is Collider currentCollider
                 && currentCollider != null
@@ -60,13 +65,13 @@ public static class PathTileSetupTool
 
             if (nonTriggerColliders.Count == 0)
             {
-                Debug.LogWarning($"[PathTileSetupTool] {tile.name}: nessun BoxCollider non-trigger trovato. Aggiungine uno e rilancia.", tile);
+                Debug.LogWarning($"[PathTileSetupTool] {tile.name}: no non-trigger BoxCollider found. Add one and run again.", tile);
                 skippedAnomaly++;
                 continue;
             }
             if (nonTriggerColliders.Count > 1)
             {
-                Debug.LogWarning($"[PathTileSetupTool] {tile.name}: trovati {nonTriggerColliders.Count} BoxCollider non-trigger. Non assegno automaticamente — sistema a mano.", tile);
+                Debug.LogWarning($"[PathTileSetupTool] {tile.name}: found {nonTriggerColliders.Count} non-trigger BoxColliders. Not auto-assigning — fix it by hand.", tile);
                 skippedAnomaly++;
                 continue;
             }
@@ -84,7 +89,7 @@ public static class PathTileSetupTool
         }
 
         Undo.CollapseUndoOperations(undoGroup);
-        Debug.Log($"[PathTileSetupTool] Collegate {linked} tile, skippate {skippedAlreadyOk} già a posto, {skippedAnomaly} con anomalie.");
+        Debug.Log($"[PathTileSetupTool] Linked {linked} tiles, skipped {skippedAlreadyOk} already OK, {skippedAnomaly} with anomalies.");
     }
 }
 #endif
