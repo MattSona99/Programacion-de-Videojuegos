@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Menu Buttons - Export-Proof Pattern</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
+
+    <style>
+        body {
+            background-color: #e5e5f7;
+            background-image:  repeating-linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), repeating-linear-gradient(45deg, #ccc 25%, #e5e5f7 25%, #e5e5f7 75%, #ccc 75%, #ccc);
+            background-position: 0 0, 10px 10px;
+            background-size: 20px 20px;
+            
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #capture-area {
+            display: flex;
+            flex-direction: column;
+            gap: 20px; 
+            padding: 20px; 
+            border-radius: 12px;
+            background: transparent; 
+        }
+
+        .game-btn {
+            /* --- CENTRAGGIO ASSOLUTO FLEXBOX --- */
+            display: flex;
+            justify-content: center;
+            align-items: center;     
+            box-sizing: border-box;  
+            /* ----------------------------------- */
+
+            font-family: 'Arial Black', Impact, sans-serif;
+            
+            /* Font e spaziature ridotte per far entrare "LEADERBOARD" in 190px */
+            font-size: 22px;
+            letter-spacing: 1px;
+            color: white;
+            padding: 15px 10px; 
+            
+            /* --- LA TUA LARGHEZZA ESATTA --- */
+            width: 337px; 
+            
+            border: 6px solid var(--btn-color);
+            border-radius: 8px; 
+            
+            /* --- IL PATTERN A PROVA DI ESPORTAZIONE --- */
+            background-color: rgba(0, 0, 0, 0.3);
+            background-image: radial-gradient(circle, rgba(0, 0, 0, 0.8) 2px, transparent 2px);
+            background-size: 6px 6px;
+            /* ------------------------------------------- */
+            
+            text-shadow: 
+                -2px -2px 0 #000,  
+                 2px -2px 0 #000,
+                -2px  2px 0 #000,
+                 2px  2px 0 #000,
+                 5px  5px 0 #000; 
+            
+            box-shadow: 0 0 0 4px black, inset 0 0 15px rgba(0,0,0,0.5);
+            text-transform: uppercase;
+        }
+
+        .btn-start       { --btn-color: #8BC34A; }
+        .btn-controls    { --btn-color: #FFCA28; }
+        .btn-settings    { --btn-color: #29B6F6; }
+        .btn-leaderboard { --btn-color: #AB47BC; }
+        .btn-quit        { --btn-color: #EF5350; }
+
+        #download-btn {
+            margin-bottom: 30px;
+            padding: 15px 25px;
+            background-color: #4CAF50;
+            color: white;
+            border: 2px solid #2E7D32;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: sans-serif;
+            box-shadow: 0 4px 0 #2E7D32;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="download-btn" onclick="salvaImmagine()">📸 SCARICA I BOTTONI IN PNG</button>
+
+    <div id="capture-area">
+        <button class="game-btn btn-start">Resume</button>
+        <button class="game-btn btn-controls">Restart</button>
+        <button class="game-btn btn-settings">Settings</button>
+        <button class="game-btn btn-leaderboard">Save Score</button>
+        <button class="game-btn btn-quit">Quit</button>
+    </div>
+
+    <script>
+        function salvaImmagine() {
+            const areaDaCatturare = document.getElementById('capture-area');
+            const bottoneDownload = document.getElementById('download-btn');
+            
+            bottoneDownload.innerText = "⏳ Creazione in corso...";
+
+            domtoimage.toPng(areaDaCatturare)
+                .then(function (dataUrl) {
+                    var link = document.createElement('a');
+                    link.download = 'Menu_Buttons_Unity.png';
+                    link.href = dataUrl;
+                    link.click();
+                    
+                    bottoneDownload.innerText = "✅ SCARICATI!";
+                    setTimeout(() => bottoneDownload.innerText = "📸 SCARICA I BOTTONI IN PNG", 2000);
+                })
+                .catch(function (error) {
+                    console.error('Ops, qualcosa è andato storto!', error);
+                    bottoneDownload.innerText = "❌ ERRORE";
+                });
+        }
+    </script>
+
+</body>
+</html>

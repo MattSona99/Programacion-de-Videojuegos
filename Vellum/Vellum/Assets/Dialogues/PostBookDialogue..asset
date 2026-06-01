@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1735c545341a7c841b2ac7f47768a64b, type: 3}
+  m_Name: PostBookDialogue.
+  m_EditorClassIdentifier: Assembly-CSharp::DialogueAsset
+  dialogueId: 
+  lines:
+  - speaker: Narrator
+    text: The pages whispered their secret, and the wanderer listened.
+  - speaker: Narrator
+    text: Then they sought the tomb, and found it among the silent stones.

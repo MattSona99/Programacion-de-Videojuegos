@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Prompt - Genshin Style</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
+
+    <style>
+        body {
+            background-color: #222;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Lilita One', cursive;
+        }
+
+        #capture-area {
+            padding: 50px;
+            background: transparent;
+            display: inline-flex; 
+        }
+
+        /* Nuvoletta stile Genshin (più pulita, senza punta) */
+        .prompt-bubble {
+            background: rgba(0, 0, 0, 0.65); /* Sfondo scuro elegante */
+            border: 2px solid rgba(255, 255, 255, 0.15); /* Bordino sottile */
+            border-radius: 50px; /* Arrotondamento morbido ma non esagerato */
+            
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px; /* Spazio perfetto tra tasto, freccia e testo */
+            
+            padding: 12px 35px 12px 15px; /* Padding asimmetrico (più spazio a destra) */
+            width: auto; 
+            
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        /* Il tasto della tastiera "F" */
+        .key-icon {
+            background-color: #f4f4f4;
+            color: #333;
+            font-family: Arial, sans-serif; /* Font pulito per il tasto */
+            font-size: 26px;
+            font-weight: 900;
+            
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            
+            /* L'effetto 3D del tasto fisico */
+            box-shadow: 0 5px 0px #b0b0b0, 0 6px 10px rgba(0,0,0,0.5);
+            border: 2px solid #fff;
+            
+            /* Compensa visivamente l'ombra per allinearlo al centro */
+            margin-bottom: 5px; 
+        }
+
+        /* La freccina */
+        .arrow-icon {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 22px;
+            text-shadow: 1px 1px 0px #000;
+        }
+
+        /* Il testo aggiornato */
+        .prompt-text {
+            color: white;
+            font-size: 32px;
+            letter-spacing: 1px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            white-space: nowrap; 
+            margin: 0;
+            padding: 0;
+            line-height: 1;
+        }
+
+        #download-btn {
+            margin-bottom: 40px;
+            padding: 15px 30px;
+            background: #FF5252;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #b71c1c;
+            font-family: sans-serif;
+            transition: transform 0.1s;
+        }
+        #download-btn:active { transform: translateY(4px); box-shadow: 0 0 0; }
+    </style>
+</head>
+<body>
+
+    <button id="download-btn" onclick="exportImage()">📸 SCARICA UI GENSHIN STYLE</button>
+
+    <div id="capture-area">
+        <div class="prompt-bubble">
+            <!-- Tasto F -->
+            <div class="key-icon">F</div>
+            
+            <!-- Freccia -->
+            <div class="arrow-icon">➤</div>
+            
+            <!-- Testo Corto -->
+            <span class="prompt-text">Touch...</span>
+        </div>
+    </div>
+
+    <script>
+        function exportImage() {
+            const node = document.getElementById('capture-area');
+            const btn = document.getElementById('download-btn');
+            
+            btn.innerText = "Esportazione...";
+
+            domtoimage.toPng(node, {
+                width: node.scrollWidth,
+                height: node.scrollHeight,
+                style: {
+                    left: '0',
+                    right: '0',
+                    top: '0',
+                    bottom: '0',
+                    margin: 'auto'
+                }
+            })
+            .then(function (dataUrl) {
+                var link = document.createElement('a');
+                link.download = 'Interact_Prompt_Genshin.png';
+                link.href = dataUrl;
+                link.click();
+                btn.innerText = "✅ FATTO!";
+                setTimeout(() => btn.innerText = "📸 SCARICA UI GENSHIN STYLE", 2000);
+            })
+            .catch(function (error) {
+                console.error('Errore:', error);
+                btn.innerText = "❌ ERRORE";
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blank Book - Perfect Alignment</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        body {
+            background-color: #222;
+            background-image: radial-gradient(circle, #333 0%, #111 100%);
+            display: flex;
+            flex-direction: column; 
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Lilita One', cursive;
+        }
+
+        #download-btn {
+            margin-bottom: 20px;
+            padding: 15px 30px;
+            background: #FF5252;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #b71c1c;
+            font-family: sans-serif;
+            transition: transform 0.1s;
+        }
+        #download-btn:active { transform: translateY(4px); box-shadow: 0 0 0; }
+
+        #capture-area {
+            padding: 40px; 
+            background: transparent;
+            display: inline-flex; 
+        }
+
+        /* --- STILE DEL LIBRO --- */
+        .book-container {
+            position: relative;
+            width: 900px;
+            height: 550px;
+            background-color: #3b2313;
+            border-radius: 15px;
+            padding: 15px 25px 25px 25px; 
+            display: flex;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 15px 30px rgba(0,0,0,0.7);
+            border: 2px solid #24140a;
+        }
+
+        .spine-cutout {
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 15px;
+            background-color: transparent;
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -10px 10px rgba(0,0,0,0.5);
+        }
+
+        .page {
+            flex: 1;
+            position: relative;
+            background-color: #e3cdad; 
+            padding: 40px;
+            box-shadow: 0 6px 0 #c2aa85, 0 10px 0 #a88d66;
+            
+            /* --- CENTRATURA VERTICALE --- */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+        .page-left {
+            border-radius: 8px 0 0 8px;
+            background: linear-gradient(to right, #e3cdad 80%, #c4a980 97%, #8a6c45 100%);
+            border-right: 1px solid #523a21;
+        }
+
+        .page-right {
+            border-radius: 0 8px 8px 0;
+            background: linear-gradient(to left, #e3cdad 80%, #c4a980 97%, #8a6c45 100%);
+            border-left: 1px solid #523a21;
+        }
+
+        /* --- SEGNALIBRI --- */
+        .bookmark-container {
+            position: absolute;
+            right: -25px;
+            top: 60px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: -1; 
+        }
+
+        .bookmark {
+            width: 40px;
+            height: 50px;
+            border-radius: 0 10px 10px 0;
+            border: 2px solid #24140a;
+            box-shadow: 5px 5px 10px rgba(0,0,0,0.5);
+        }
+        .bm-red { background-color: #b73e3e; }
+        .bm-blue { background-color: #3e6bb7; }
+        .bm-green { background-color: #4b8c4b; }
+
+        /* (Ho mantenuto le classi CSS dei testi e dei tasti nel caso ti servissero in futuro) */
+        .panel-title { color: #3b2313; font-size: 42px; text-align: center; margin: 0 0 40px 0; letter-spacing: 2px; }
+        .command-row { display: flex; align-items: center; margin-bottom: 30px; }
+        .keys-group { display: flex; align-items: center; gap: 6px; width: 186px; justify-content: flex-end; }
+        .key-icon { background-color: #fcf4e3; color: #3b2313; font-family: Arial, sans-serif; font-size: 18px; font-weight: 900; width: 42px; height: 42px; box-sizing: border-box; border-radius: 6px; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 0px #bda98c, 0 5px 5px rgba(0,0,0,0.3); border: 2px solid #a88d66; margin-bottom: 4px; white-space: nowrap; }
+        .key-wide { width: 186px; }
+        .command-text { color: #3b2313; font-size: 24px; letter-spacing: 1px; text-align: left; margin: 0 0 0 20px; }
+        .sub-text { font-size: 16px; color: #8a6c45; margin-left: 8px; }
+    </style>
+</head>
+<body>
+
+    <button id="download-btn" onclick="exportImage()">📸 SCARICA LIBRO VUOTO</button>
+
+    <div id="capture-area">
+        
+        <div class="book-container">
+            <div class="spine-cutout"></div>
+
+            <div class="bookmark-container">
+                <div class="bookmark bm-red"></div>
+                <div class="bookmark bm-blue"></div>
+                <div class="bookmark bm-green"></div>
+            </div>
+
+            <!-- PAGINA SINISTRA -->
+            <div class="page page-left">
+            </div>
+
+            <!-- PAGINA DESTRA -->
+            <div class="page page-right">
+            </div>
+
+        </div> 
+    </div>
+
+    <script>
+        function exportImage() {
+            const node = document.getElementById('capture-area');
+            const btn = document.getElementById('download-btn');
+            
+            btn.innerText = "Esportazione...";
+
+            html2canvas(node, {
+                backgroundColor: null, 
+                scale: 2,              
+                logging: false         
+            }).then(canvas => {
+                const dataUrl = canvas.toDataURL("image/png");
+                
+                const link = document.createElement('a');
+                link.download = 'Magic_Book_Blank.png';
+                link.href = dataUrl;
+                link.click();
+                
+                btn.innerText = "✅ FATTO!";
+                setTimeout(() => btn.innerText = "📸 SCARICA LIBRO VUOTO", 2000);
+            }).catch(error => {
+                console.error('Errore:', error);
+                btn.innerText = "❌ ERRORE";
+            });
+        }
+    </script>
+</body>
+</html>

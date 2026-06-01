@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: ef601cd22f1cd414aa4aa6f27fe359a9
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - tilePrefab: {instanceID: 0}
+  - floorPlane: {instanceID: 0}
+  - decorativeTilePrefab: {fileID: 3913034381718849644, guid: 90222d78f19672b49a3e9d23bd479cfe, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

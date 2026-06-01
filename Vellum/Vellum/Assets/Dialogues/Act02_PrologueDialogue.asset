@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1735c545341a7c841b2ac7f47768a64b, type: 3}
+  m_Name: Act02_PrologueDialogue
+  m_EditorClassIdentifier: Assembly-CSharp::DialogueAsset
+  dialogueId: 
+  lines:
+  - speaker: Narrator
+    text: The Wanderer and the small one stepped into a hall of mirrored walls...
+  - speaker: Narrator
+    text: ...and the silence there was older than the world.
+  - speaker: Narrator
+    text: At its centre stood a hologram of the small one's own shape...
+  - speaker: Narrator
+    text: ...scattered into pieces that drifted as if waiting to be named.
+  - speaker: Narrator
+    text: Behind them, the air folded open...
+  - speaker: Narrator
+    text: ...and shapes of malice emerged from each wall in turn.
+  - speaker: Narrator
+    text: Thw Wanderer raised their blade, and met them one by one.
+  - speaker: Narrator
+    text: The small one watched, and saw that each fallen foe...
+  - speaker: Narrator
+    text: ...left behind a fragment of the great statue.
+  - speaker: Narrator
+    text: So it ran, and gathered and set each piece where it belonged...
+  - speaker: Narrator
+    text: ...untile the figure could stand whole again.

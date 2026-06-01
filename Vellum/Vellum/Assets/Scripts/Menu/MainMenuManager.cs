@@ -5,6 +5,7 @@ using UnityEngine.InputSystem;
 using Unity.Cinemachine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 using TMPro;
 
 public class MainMenuManager : MonoBehaviour
@@ -35,8 +36,11 @@ public class MainMenuManager : MonoBehaviour
     [SerializeField] private GameObject deathContainer;
     [Tooltip("Campo nome dentro il Death Container, letto da SaveScore().")]
     [SerializeField] private TMP_InputField nameInputField;
-    [Tooltip("Barre HUD (PlayerHUD, StatueProgressBar) da nascondere in dissolvenza alla morte del Player.")]
-    [SerializeField] private HudReveal[] hudHideOnDeath;
+    [Tooltip("Numero massimo di caratteri inseribili nel campo nome.")]
+    [SerializeField] private int nameCharacterLimit = 10;
+    [Tooltip("Barre HUD (PlayerHUD, StatueProgressBar, ...) da nascondere in dissolvenza quando si apre il menu (pausa Esc) e alla morte del Player; rientrano al resume.")]
+    [FormerlySerializedAs("hudHideOnDeath")]
+    [SerializeField] private HudReveal[] hudBars;
     
     [Header("Impostazioni Animazioni UI")]
     [Tooltip("Durata in secondi dell'effetto sfumatura (Fade) dei pannelli laterali")]
@@ -79,6 +83,7 @@ public class MainMenuManager : MonoBehaviour
     private Coroutine settingsFadeCoroutine;
     private Coroutine leaderboardFadeCoroutine;
     private Coroutine _deathFadeCoroutine;
+    private bool[] _hudWasVisible; // stato delle barre HUD prima della pausa (per il restore al resume)
 
     private void Start()
     {
@@ -109,6 +114,9 @@ public class MainMenuManager : MonoBehaviour
             deathContainerCG = deathContainer.GetComponent<CanvasGroup>();
             if (deathContainerCG == null) deathContainerCG = deathContainer.AddComponent<CanvasGroup>();
         }
+
+        if (nameInputField != null && nameCharacterLimit > 0)
+            nameInputField.characterLimit = nameCharacterLimit;
 
         CloseAllSubPanels(true);
 
@@ -367,13 +375,8 @@ public class MainMenuManager : MonoBehaviour
 
         SetPlayerMovement(false);
 
-        // Le barre HUD (vita Player, completamento statua) scompaiono in
-        // dissolvenza: la schermata di morte deve restare pulita.
-        if (hudHideOnDeath != null)
-        {
-            for (int i = 0; i < hudHideOnDeath.Length; i++)
-                if (hudHideOnDeath[i] != null) hudHideOnDeath[i].Hide();
-        }
+        // Le barre HUD scompaiono in dissolvenza (la schermata di morte deve
+        // restare pulita): ci pensa HideHudBars() dentro TransitionToMenu().
 
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
@@ -458,6 +461,10 @@ public class MainMenuManager : MonoBehaviour
         if (!wasFirstPlay)
         {
             SetPlayerMovement(true);
+            // Resume da pausa: le barre HUD rientrano in dissolvenza (solo quelle
+            // che erano visibili prima della pausa). Sul first play NON le rivelo:
+            // ci pensa il regista di scena dopo il prologo (es. Act02Director).
+            RevealHudBars();
         }
 
         float elapsedTime = 0f;
@@ -518,11 +525,15 @@ public class MainMenuManager : MonoBehaviour
 
     private IEnumerator TransitionToMenu()
     {
-        isTransitioning = true; 
+        isTransitioning = true;
         isGameActive = false;
 
         SetPlayerMovement(false);
-        
+
+        // Le barre HUD sfumano via mentre appare il menu (pausa Esc o morte):
+        // così non restano sopra il menu. Lo stato viene ricordato per il resume.
+        HideHudBars();
+
         CloseAllSubPanels(true);
 
         if (cameraBrain != null) 
@@ -564,6 +575,29 @@ public class MainMenuManager : MonoBehaviour
         isTransitioning = false;
 
         Time.timeScale = 0f;
+    }
+
+    // Snapshot della visibilità corrente e fade-out di tutte le barre HUD.
+    private void HideHudBars()
+    {
+        if (hudBars == null) return;
+        if (_hudWasVisible == null || _hudWasVisible.Length != hudBars.Length)
+            _hudWasVisible = new bool[hudBars.Length];
+
+        for (int i = 0; i < hudBars.Length; i++)
+        {
+            if (hudBars[i] == null) { _hudWasVisible[i] = false; continue; }
+            _hudWasVisible[i] = hudBars[i].IsVisible;
+            hudBars[i].Hide();
+        }
+    }
+
+    // Fade-in solo delle barre che erano visibili prima della pausa.
+    private void RevealHudBars()
+    {
+        if (hudBars == null || _hudWasVisible == null) return;
+        for (int i = 0; i < hudBars.Length; i++)
+            if (hudBars[i] != null && i < _hudWasVisible.Length && _hudWasVisible[i]) hudBars[i].Reveal();
     }
 
     private void SetPlayerMovement(bool canMove)

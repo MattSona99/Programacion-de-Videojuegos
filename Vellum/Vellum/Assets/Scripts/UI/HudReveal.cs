@@ -27,6 +27,10 @@ public class HudReveal : MonoBehaviour
     private Coroutine _routine;
     private bool _isVisible;
 
+    // Stato visibile (intento, settato subito in Reveal/Hide). Usato dal menu di
+    // pausa per ripristinare al resume solo le barre che erano visibili.
+    public bool IsVisible => _isVisible;
+
     void Awake()
     {
         _rect = (RectTransform)transform;

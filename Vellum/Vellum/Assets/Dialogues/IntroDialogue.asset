@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1735c545341a7c841b2ac7f47768a64b, type: 3}
+  m_Name: IntroDialogue
+  m_EditorClassIdentifier: Assembly-CSharp::DialogueAsset
+  dialogueId: 
+  lines:
+  - speaker: Narrator
+    text: And so the wanderer stepped into the woods, where every name was remembered.
+  - speaker: Narrator
+    text: 'A book had been waiting there. '
+  - speaker: Narrator
+    text: When the wanderer found it, the pages opened and closed at the press of
+      [B].
