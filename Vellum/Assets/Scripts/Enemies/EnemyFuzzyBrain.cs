@@ -1,7 +1,9 @@
 using Vellum.AI.Fuzzy;
 
-// Cosa "vede" il nemico in un istante: distanza dal bersaglio, vita propria
-// (0..1) e quanti alleati ha vicino. Valori crisp dati in pasto al fuzzy.
+/// <summary>
+/// What the enemy "sees" at an instant: distance to the target, its own health (0..1)
+/// and how many allies are nearby. Crisp values fed into the fuzzy controller.
+/// </summary>
 public struct EnemyPerception
 {
     public float distance;
@@ -9,18 +11,21 @@ public struct EnemyPerception
     public float allyCount;
 }
 
-// Cosa "decide" il fuzzy: aggression 0..1 = quanto vuole spingere e colpire.
-// EnemyAI la usa per modulare la cadenza d'attacco (più alta → cooldown breve).
+/// <summary>
+/// What the fuzzy controller "decides": aggression 0..1 = how much it wants to push and hit.
+/// EnemyAI uses it to modulate the attack rate (higher → shorter cooldown).
+/// </summary>
 public struct EnemyDecision
 {
     public float aggression;
 }
 
-// Controllore a Logica Difusa (Mamdani) dei nemici. È la tecnica di IA che
-// modella le decisioni dei personaggi richiesta dalla consegna: regole
-// linguistiche su distanza/vita/affollamento producono aggressività e voglia
-// di ritirata. Il FuzzyController è condiviso e immutabile (costruito una volta);
-// ogni nemico tiene solo i buffer di input/output → nessuna alloc per decisione.
+/// <summary>
+/// Mamdani fuzzy-logic controller for the enemies. This is the AI technique that models the
+/// characters' decisions: linguistic rules over distance/health/crowding produce aggression.
+/// The FuzzyController is shared and immutable (built once); each enemy only keeps its
+/// input/output buffers → no allocation per decision.
+/// </summary>
 public sealed class EnemyFuzzyBrain
 {
     private const string DISTANCE = "distance";
@@ -47,6 +52,7 @@ public sealed class EnemyFuzzyBrain
         _oAggression = _controller.OutputIndex(AGGRESSION);
     }
 
+    /// <summary>Runs one fuzzy inference pass from the perception and returns the decided aggression.</summary>
     public EnemyDecision Decide(in EnemyPerception p)
     {
         _in[_iDistance] = p.distance;
@@ -61,8 +67,10 @@ public sealed class EnemyFuzzyBrain
         };
     }
 
-    // Costruzione del sistema fuzzy. Le soglie di distanza sono in metri: "Near"
-    // ~ raggio d'attacco, "Far" = ancora da inseguire.
+    /// <summary>
+    /// Builds the shared fuzzy system. Distance thresholds are in metres: "Near" ~ attack
+    /// range, "Far" = still to be chased.
+    /// </summary>
     private static FuzzyController GetShared()
     {
         if (_shared != null) return _shared;
@@ -90,16 +98,16 @@ public sealed class EnemyFuzzyBrain
             .Samples(32)
             .Input(distance).Input(health).Input(crowding)
             .Output(aggression)
-            // Vicino e in salute: assalto.
+            // Close and healthy: assault.
             .Rule().If(DISTANCE, "Near").And(HEALTH, "High").Then(AGGRESSION, "High")
-            // Vicino ma ferito: attacca meno spesso (cooldown più lungo).
+            // Close but wounded: attacks less often (longer cooldown).
             .Rule().If(DISTANCE, "Near").And(HEALTH, "Low").Then(AGGRESSION, "Low")
-            // Vicino, vita media: aggressività moderata.
+            // Close, medium health: moderate aggression.
             .Rule().If(DISTANCE, "Near").And(HEALTH, "Medium").Then(AGGRESSION, "Medium")
-            // Distanza media / lontano: continua a inseguire.
+            // Medium distance / far: keep chasing.
             .Rule().If(DISTANCE, "Medium").Then(AGGRESSION, "Medium")
             .Rule().If(DISTANCE, "Far").Then(AGGRESSION, "Medium")
-            // In gruppo e vicino: spinge di più (assalto coordinato).
+            // Grouped and close: pushes harder (coordinated assault).
             .Rule().If(CROWDING, "High").And(DISTANCE, "Near").Then(AGGRESSION, "High")
             .Build();
 

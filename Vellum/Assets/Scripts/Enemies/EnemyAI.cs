@@ -1,14 +1,14 @@
 using UnityEngine;
 
-// AI nemico dell'arena Act_02 (movimento semplice, niente NavMesh).
-// Bersaglio dinamico via EnemyTargetCoordinator: di default insegue Jammo;
-// passa al Player se è stato colpito da lui e c'è uno slot Player libero
-// (richieste #1/#2). Il COMPORTAMENTO verso il bersaglio (inseguire / attaccare
-// / arretrare) è deciso da un controllore a Logica Difusa (EnemyFuzzyBrain).
-// Gli attaccanti dello stesso bersaglio si dispongono a VENTAGLIO su slot
-// angolari (coordinator) per non accodarsi; la separazione rifinisce.
-// Implementa IDamageReaction per accorgersi di essere stato colpito dal Player.
-// Richiede Health sullo stesso GameObject; KnockbackReceiver è opzionale.
+/// <summary>
+/// Arena enemy AI for Act_02 (simple movement, no NavMesh). Dynamic targeting via
+/// EnemyTargetCoordinator: chases Jammo by default, switches to the Player if hit by them and
+/// a Player slot is free. The attack rate toward the target is driven by a fuzzy-logic
+/// controller (EnemyFuzzyBrain). Attackers of the same target spread out in a FAN over angular
+/// slots (coordinator) so they don't queue up; separation refines the steering.
+/// Implements IDamageReaction to notice being hit by the Player. Requires Health on the same
+/// GameObject; KnockbackReceiver is optional.
+/// </summary>
 [RequireComponent(typeof(Health))]
 public class EnemyAI : MonoBehaviour, IDamageReaction
 {
@@ -16,41 +16,41 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
     private static readonly int AttackHash = Animator.StringToHash("Attack");
     private static readonly int DeadHash = Animator.StringToHash("Dead");
 
-    [Header("Movimento")]
+    [Header("Movement")]
     [SerializeField] private float moveSpeed = 3f;
     [SerializeField] private float turnSpeed = 10f;
     [SerializeField] private float gravity = -20f;
 
-    [Header("Separazione (anti-overlap, movimento indipendente)")]
-    [Tooltip("Layer dei nemici: usato per allontanarsi dai simili vicini e per contare gli alleati (fuzzy).")]
+    [Header("Separation (anti-overlap, independent movement)")]
+    [Tooltip("Enemy layer: used to steer away from nearby peers and to count allies (fuzzy).")]
     [SerializeField] private LayerMask enemyMask;
     [SerializeField] private float separationRadius = 1.5f;
     [SerializeField] private float separationWeight = 1.5f;
-    [Tooltip("Raggio entro cui contare gli alleati (input 'crowding' del fuzzy).")]
+    [Tooltip("Radius within which to count allies (the fuzzy 'crowding' input).")]
     [SerializeField] private float peerCheckRadius = 2.5f;
 
-    [Header("Attacco / contatto")]
+    [Header("Attack / contact")]
     [SerializeField] private float attackRange = 1.8f;
-    [Tooltip("Distanza desiderata a cui il nemico SMETTE di avanzare e resta a ridosso del bersaglio. Viene comunque garantito un minimo di sicurezza dai raggi reali dei collider (vedi collisionMargin), così non sbatte mai contro il bersaglio. Continua a seguire il bersaglio se questo si allontana.")]
+    [Tooltip("Desired distance at which the enemy STOPS advancing and stays close to the target. A safety minimum is still enforced from the real collider radii (see collisionMargin), so it never bumps into the target. It keeps following the target if it moves away.")]
     [SerializeField] private float stopDistance = 1f;
-    [Tooltip("Margine aggiunto alla somma dei raggi delle capsule per la distanza di stop minima di sicurezza (anti-jam contro il collider del bersaglio).")]
+    [Tooltip("Margin added to the sum of the capsule radii for the minimum safety stop distance (anti-jam against the target's collider).")]
     [SerializeField] private float collisionMargin = 0.2f;
-    [Tooltip("Cooldown con aggressività MINIMA (fuzzy aggression = 0).")]
+    [Tooltip("Cooldown at MINIMUM aggression (fuzzy aggression = 0).")]
     [SerializeField] private float maxAttackCooldown = 3f;
-    [Tooltip("Cooldown con aggressività MASSIMA (fuzzy aggression = 1).")]
+    [Tooltip("Cooldown at MAXIMUM aggression (fuzzy aggression = 1).")]
     [SerializeField] private float minAttackCooldown = 1f;
     [SerializeField] private float enemyDamage = 10f;
 
-    [Header("Accerchiamento (effetto ventaglio)")]
-    [Tooltip("Apertura angolare (gradi) tra uno slot e l'altro attorno al bersaglio.")]
+    [Header("Encirclement (fan effect)")]
+    [Tooltip("Angular spacing (degrees) between one slot and the next around the target.")]
     [SerializeField] private float fanSpacingDeg = 32f;
 
-    [Header("Decisione fuzzy")]
-    [Tooltip("Ogni quanti secondi rivalutare la decisione fuzzy (non ogni frame: niente alloc in hot path).")]
+    [Header("Fuzzy decision")]
+    [Tooltip("How often (seconds) to re-evaluate the fuzzy decision (not every frame: no allocations in a hot path).")]
     [SerializeField] private float decisionInterval = 0.2f;
 
     [Header("Targeting")]
-    [Tooltip("Ogni quanti secondi rivalutare il bersaglio (Player vs Jammo).")]
+    [Tooltip("How often (seconds) to re-evaluate the target (Player vs Jammo).")]
     [SerializeField] private float retargetInterval = 0.3f;
 
     private Health _health;
@@ -84,7 +84,7 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
         _health = GetComponent<Health>();
         _controller = GetComponent<CharacterController>();
         if (_controller == null)
-            Debug.LogWarning("[EnemyAI] Nessun CharacterController: il nemico non collide coi muri dell'arena.");
+            Debug.LogWarning("[EnemyAI] No CharacterController: the enemy won't collide with the arena walls.");
         else
             _ownRadius = _controller.radius;
         _knockback = GetComponent<KnockbackReceiver>();
@@ -93,19 +93,21 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
         _brain = new EnemyFuzzyBrain();
     }
 
-    // Distanza di stop EFFETTIVA: mai sotto la somma dei raggi delle capsule
-    // (nemico + bersaglio) + margine, così il nemico non sbatte contro il
-    // collider del bersaglio (niente muro invisibile / spinta repulsiva).
+    // EFFECTIVE stop distance: never below the sum of the capsule radii
+    // (enemy + target) + margin, so the enemy doesn't bump into the target's
+    // collider (no invisible wall / repulsive push).
     private float EffectiveStop() => Mathf.Max(stopDistance, _ownRadius + _targetRadius + collisionMargin);
 
     void OnDisable()
     {
-        // Fuori dalle liste del coordinator (pooling): libera lo slot.
+        // Out of the coordinator's lists (pooling): release the slot.
         if (EnemyTargetCoordinator.Instance != null) EnemyTargetCoordinator.Instance.Unregister(this);
     }
 
-    // IDamageReaction: chiamato da Health a ogni danno subìto. Se il colpo viene
-    // dal Player, il nemico viene "triggerato" e prova a ingaggiarlo subito.
+    /// <summary>
+    /// IDamageReaction: called by Health on every hit taken. If the hit comes from the Player,
+    /// the enemy is "triggered" and tries to engage them immediately.
+    /// </summary>
     public void OnDamaged(DamageInfo info)
     {
         if (info.source != null && info.source.CompareTag("Player"))
@@ -159,21 +161,20 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
 
         Vector3 dir = toTarget / planarDist;
 
-        // Punto di standoff attorno al bersaglio (a stopDistance), su uno slot
-        // angolare: con più attaccanti si aprono a ventaglio invece di accodarsi.
+        // Standoff point around the target (at stopDistance), on an angular slot:
+        // with multiple attackers they fan out instead of queuing up.
         Vector3 approach = ComputeApproachPoint(_currentTarget.position, dir);
         Vector3 toApproach = approach - transform.position;
         toApproach.y = 0f;
         Vector3 moveDir = toApproach.sqrMagnitude > 1e-4f ? toApproach.normalized : dir;
 
-        // Attacca appena il bersaglio è a tiro, anche mentre fa l'ultimo passo.
+        // Attack as soon as the target is in range, even while taking the last step.
         if (planarDist <= attackRange) { FaceDirection(dir); TryAttack(_currentTarget); }
         else { FaceDirection(moveDir); }
 
-        // Gate sulla distanza DAL BERSAGLIO (non dal punto): smette di avanzare
-        // appena è a ridosso, così non spinge contro il collider del bersaglio
-        // (niente muro invisibile / forza repulsiva). Riprende se il bersaglio
-        // si allontana oltre la distanza di stop effettiva.
+        // Gate on the distance TO THE TARGET (not to the point): stops advancing as soon
+        // as it's close, so it doesn't push against the target's collider (no invisible
+        // wall / repulsive force). Resumes if the target moves beyond the effective stop.
         if (planarDist > EffectiveStop())
         {
             Vector3 steer = (moveDir + ComputeSeparation()).normalized;
@@ -187,14 +188,14 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
         }
     }
 
-    // Sceglie Player o Jammo secondo le regole del coordinator (richieste #1/#2).
+    /// <summary>Picks Player or Jammo according to the coordinator's rules.</summary>
     private void ResolveTarget()
     {
         var coord = EnemyTargetCoordinator.Instance;
         if (coord == null)
         {
-            // Fallback (coordinator non in scena): punta il Player, così i nemici
-            // non restano immobili durante un playtest prima del wiring.
+            // Fallback (coordinator not in scene): target the Player, so the enemies
+            // don't stand still during a playtest before the wiring is done.
             if (!_fallbackTried)
             {
                 _fallbackTried = true;
@@ -206,7 +207,7 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
             return;
         }
 
-        // Jammo morto = livello finito: nessun bersaglio, i nemici restano fermi.
+        // Jammo dead = level over: no target, the enemies stand still.
         if (!coord.JammoAlive)
         {
             SetTarget(null, null);
@@ -215,21 +216,21 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
 
         bool playerAlive = coord.PlayerAlive;
 
-        // Se sta già inseguendo il Player (slot riservato), continua finché vive.
+        // If it's already chasing the Player (reserved slot), keep going while they live.
         if (coord.IsChasingPlayer(this) && playerAlive)
         {
             SetTarget(coord.Player, coord.PlayerHealth);
             return;
         }
 
-        // Triggerato dal Player e c'è uno slot libero → ingaggia il Player.
+        // Triggered by the Player and a slot is free → engage the Player.
         if (_triggeredByPlayer && playerAlive && coord.TryClaimPlayer(this))
         {
             SetTarget(coord.Player, coord.PlayerHealth);
             return;
         }
 
-        // Default: Jammo (vivo, garantito dal check sopra).
+        // Default: Jammo (alive, guaranteed by the check above).
         SetTarget(coord.Jammo, coord.JammoHealth);
     }
 
@@ -238,8 +239,8 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
         _currentTarget = t;
         _currentTargetHealth = h;
 
-        // Raggio del collider del bersaglio (per la distanza di stop di sicurezza).
-        // SetTarget gira su timer, non ogni frame → GetComponent ammesso.
+        // Radius of the target's collider (for the safety stop distance).
+        // SetTarget runs on a timer, not every frame → GetComponent is acceptable.
         CharacterController tc = t != null ? t.GetComponentInParent<CharacterController>() : null;
         _targetRadius = tc != null ? tc.radius : 0f;
 
@@ -247,17 +248,18 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
         if (coord == null) return;
 
         if (t != null && t == coord.Jammo) coord.RegisterJammo(this);
-        else if (t != null && t == coord.Player) { /* già in lista via TryClaimPlayer */ }
+        else if (t != null && t == coord.Player) { /* already in the list via TryClaimPlayer */ }
         else coord.Unregister(this);
     }
 
-    // Punto di standoff a 'stopDistance' dal bersaglio, sul lato da cui il
-    // nemico arriva. Con più attaccanti dello stesso bersaglio, ognuno ruota di
-    // uno slot angolare → si aprono a ventaglio attorno al bersaglio (chi è
-    // dietro punta a uno slot laterale libero e gira attorno).
+    /// <summary>
+    /// Standoff point at 'stopDistance' from the target, on the side the enemy approaches from.
+    /// With multiple attackers of the same target, each rotates by one angular slot → they fan
+    /// out around the target (those behind aim for a free side slot and circle around).
+    /// </summary>
     private Vector3 ComputeApproachPoint(Vector3 targetPos, Vector3 dir)
     {
-        Vector3 fromTarget = -dir; // bersaglio → nemico
+        Vector3 fromTarget = -dir; // target → enemy
 
         var coord = EnemyTargetCoordinator.Instance;
         if (coord != null)
@@ -357,7 +359,7 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
         if (Time.time - _lastAttackTime < _currentAttackCooldown) return;
 
         _lastAttackTime = Time.time;
-        // Aggressività fuzzy: alta → cooldown breve (attacca spesso), bassa → lungo.
+        // Fuzzy aggression: high → short cooldown (attacks often), low → long.
         float baseCd = Mathf.Lerp(maxAttackCooldown, minAttackCooldown, Mathf.Clamp01(_decision.aggression));
         _currentAttackCooldown = Mathf.Clamp(baseCd * Random.Range(0.85f, 1.15f),
                                              minAttackCooldown, maxAttackCooldown);
@@ -388,8 +390,10 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
         if (_animator != null && _animParams.Has(hash)) _animator.SetTrigger(hash);
     }
 
+    /// <summary>Pooling hook: alias for <see cref="ResetState"/>, called when the enemy is spawned/reused.</summary>
     public void Configure() => ResetState();
 
+    /// <summary>Resets all runtime state so the pooled enemy starts clean (targeting, fuzzy, animator, controller).</summary>
     public void ResetState()
     {
         _deathHandled = false;
@@ -397,7 +401,7 @@ public class EnemyAI : MonoBehaviour, IDamageReaction
         _currentAttackCooldown = 0f;
         _verticalVelocity = 0f;
 
-        // Targeting / fuzzy: riparte pulito (il GO viene riusato dal pool).
+        // Targeting / fuzzy: start clean (the GameObject is reused from the pool).
         _triggeredByPlayer = false;
         _currentTarget = null;
         _currentTargetHealth = null;

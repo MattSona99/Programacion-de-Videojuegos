@@ -1,29 +1,31 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Coordina a chi puntano i nemici dell'arena. Regola (richieste #1/#2):
-// - bersaglio di default = Jammo (i nemici puntano a sabotare la statua);
-// - un nemico passa al Player solo se "triggerato dal Player" (lo ha colpito) e
-//   ci sono slot Player liberi (maxPlayerChasers). Così, appena uno ingaggia il
-//   Player, gli altri della wave restano/vanno su Jammo.
-// Singleton leggero: i nemici poolati si registrano via Instance senza wiring
-// per-istanza. I riferimenti a Player/Jammo si assegnano in Inspector.
+/// <summary>
+/// Coordinates who the arena enemies target. Rules:
+/// - default target = Jammo (enemies aim to sabotage the statue);
+/// - an enemy switches to the Player only if "triggered by the Player" (it was hit by them)
+///   and there are free Player slots (maxPlayerChasers). So as soon as one engages the
+///   Player, the rest of the wave stay on / go to Jammo.
+/// Lightweight singleton: pooled enemies register via Instance with no per-instance wiring.
+/// The Player/Jammo references are assigned in the Inspector.
+/// </summary>
 public class EnemyTargetCoordinator : MonoBehaviour
 {
     public static EnemyTargetCoordinator Instance { get; private set; }
 
-    [Header("Bersagli")]
+    [Header("Targets")]
     [SerializeField] private Transform player;
     [SerializeField] private Health playerHealth;
     [SerializeField] private Transform jammo;
     [SerializeField] private Health jammoHealth;
 
-    [Header("Regole di ingaggio")]
-    [Tooltip("Quanti nemici possono inseguire il Player contemporaneamente. Gli altri vanno su Jammo.")]
+    [Header("Engagement rules")]
+    [Tooltip("How many enemies can chase the Player at once. The rest go to Jammo.")]
     [SerializeField] private int maxPlayerChasers = 1;
 
-    // Liste ORDINATE: l'indice in lista è lo "slot" usato per l'accerchiamento a
-    // ventaglio (vedi EnemyAI.ComputeApproachPoint).
+    // ORDERED lists: the index in the list is the "slot" used for the fan-shaped
+    // encirclement (see EnemyAI.ComputeApproachPoint).
     private readonly List<EnemyAI> _playerChasers = new List<EnemyAI>();
     private readonly List<EnemyAI> _jammoChasers = new List<EnemyAI>();
 
@@ -38,7 +40,7 @@ public class EnemyTargetCoordinator : MonoBehaviour
     {
         if (Instance != null && Instance != this)
         {
-            Debug.LogWarning("[EnemyTargetCoordinator] Istanza duplicata: ne tengo una sola.", this);
+            Debug.LogWarning("[EnemyTargetCoordinator] Duplicate instance: keeping only one.", this);
             Destroy(this);
             return;
         }
@@ -56,8 +58,10 @@ public class EnemyTargetCoordinator : MonoBehaviour
     public bool JammoAlive => jammo != null && (jammoHealth == null || !jammoHealth.IsDead);
     public bool PlayerAlive => player != null && (playerHealth == null || !playerHealth.IsDead);
 
-    // Prova a riservare uno slot Player per questo nemico. True se concesso (o se
-    // lo possedeva già). False → il nemico deve puntare Jammo.
+    /// <summary>
+    /// Tries to reserve a Player slot for this enemy. True if granted (or already held).
+    /// False → the enemy must target Jammo.
+    /// </summary>
     public bool TryClaimPlayer(EnemyAI enemy)
     {
         if (enemy == null || !PlayerAlive) return false;
@@ -69,12 +73,13 @@ public class EnemyTargetCoordinator : MonoBehaviour
         return true;
     }
 
+    /// <summary>Releases this enemy's Player slot.</summary>
     public void ReleasePlayer(EnemyAI enemy)
     {
         if (enemy != null) _playerChasers.Remove(enemy);
     }
 
-    // Il nemico punta Jammo: entra nella lista jammo (esce da quella player).
+    /// <summary>The enemy targets Jammo: enters the jammo list (and leaves the player list).</summary>
     public void RegisterJammo(EnemyAI enemy)
     {
         if (enemy == null) return;
@@ -82,7 +87,7 @@ public class EnemyTargetCoordinator : MonoBehaviour
         if (!_jammoChasers.Contains(enemy)) _jammoChasers.Add(enemy);
     }
 
-    // Idle / morte / disable: fuori da entrambe le liste.
+    /// <summary>Idle / death / disable: removes the enemy from both lists.</summary>
     public void Unregister(EnemyAI enemy)
     {
         if (enemy == null) return;
@@ -90,13 +95,14 @@ public class EnemyTargetCoordinator : MonoBehaviour
         _jammoChasers.Remove(enemy);
     }
 
+    /// <summary>True if the enemy currently holds a Player slot.</summary>
     public bool IsChasingPlayer(EnemyAI enemy) => enemy != null && _playerChasers.Contains(enemy);
 
-    // Slot (indice in lista) e numero di attaccanti dello stesso bersaglio:
-    // usati per disporre i nemici a ventaglio attorno al bersaglio.
+    /// <summary>Slot index in the target's list — used to fan the enemies out around the target.</summary>
     public int SlotIndex(EnemyAI enemy, bool isPlayer)
         => (isPlayer ? _playerChasers : _jammoChasers).IndexOf(enemy);
 
+    /// <summary>Number of attackers currently targeting the Player (or Jammo).</summary>
     public int AttackerCount(bool isPlayer)
         => (isPlayer ? _playerChasers : _jammoChasers).Count;
 }
