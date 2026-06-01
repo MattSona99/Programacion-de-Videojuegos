@@ -1,10 +1,12 @@
 using UnityEngine;
 
-// Va sullo stato Attack04 (finisher full-body) del Base Layer. Il finisher è una
-// piroetta a corpo intero: avvisa PlayerCombat in entrata/uscita così che azzeri il
-// peso del layer UpperBody (le gambe/root mascherate lì spezzerebbero la rotazione)
-// e blocchi il movimento finché dura. Sul Boss (clone senza PlayerCombat) i metodi
-// sono no-op e lo stato non viene mai raggiunto (il Boss non setta "Finisher").
+/// <summary>
+/// Goes on the Attack04 state (full-body finisher) of the Base Layer. The finisher is a
+/// whole-body spin: it notifies <see cref="PlayerCombat"/> on enter/exit so it zeroes the
+/// UpperBody layer weight (the masked legs/root there would break the rotation) and locks
+/// movement for its duration. On the Boss (a clone without PlayerCombat) the calls are
+/// no-ops and the state is never reached (the Boss never sets "Finisher").
+/// </summary>
 public class MeleeFinisherState : StateMachineBehaviour
 {
     private PlayerCombat _combat;

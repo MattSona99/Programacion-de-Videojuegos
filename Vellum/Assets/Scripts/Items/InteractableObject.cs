@@ -1,14 +1,19 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Events; // <-- IL SEGRETO È QUI
+using UnityEngine.Events;
 
+/// <summary>
+/// Generic interactable: a trigger collider that shows an interaction prompt while the Player
+/// is in range and invokes a UnityEvent when F is pressed. Behaviors are wired per-object in
+/// the Inspector (no hard-coded coupling), per the project's interaction pattern.
+/// </summary>
 public class InteractableObject : MonoBehaviour
 {
-    [Header("Impostazioni UI (Nuvoletta)")]
+    [Header("UI settings (prompt bubble)")]
     public Sprite promptIcon;
-    
-    [Header("Cosa succede quando premi F?")]
-    public UnityEvent onInteract; // <-- Crea la lista nell'Inspector!
+
+    [Header("What happens when you press F?")]
+    public UnityEvent onInteract; // Build the list in the Inspector
 
     private bool _isPlayerInRange = false;
 
@@ -16,11 +21,11 @@ public class InteractableObject : MonoBehaviour
     {
         if (_isPlayerInRange && Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame)
         {
-            // Nasconde la nuvoletta mentre interagisci
+            // Hide the prompt bubble while interacting
             if (InteractionUIManager.Instance != null)
                 InteractionUIManager.Instance.HidePrompt();
-                
-            // ESEGUE LE AZIONI PERSONALIZZATE CHE SCEGLI NELL'INSPECTOR!
+
+            // Run the custom actions wired in the Inspector
             onInteract.Invoke();
         }
     }

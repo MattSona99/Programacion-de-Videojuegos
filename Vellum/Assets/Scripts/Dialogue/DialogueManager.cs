@@ -4,6 +4,11 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// <summary>
+/// Singleton that plays <see cref="DialogueAsset"/>s: fades in a canvas, types each line with a
+/// typewriter effect (Space skips/advances), and locks the Player for the duration. External
+/// directors can also lock/unlock the Player around a dialogue via LockPlayer/UnlockPlayer.
+/// </summary>
 public class DialogueManager : MonoBehaviour
 {
     public static DialogueManager Instance;
@@ -37,13 +42,15 @@ public class DialogueManager : MonoBehaviour
         if (advanceHint != null) advanceHint.SetActive(false);
     }
 
-    // Esposti per registi esterni (es. Act02Director) che devono bloccare il
-    // player PRIMA del PlayDialogue — tipicamente durante un blend camera
-    // iniziale, quando il dialogo non è ancora partito ma il player non deve
-    // potersi muovere.
+    // Exposed for external directors (e.g. Act02Director) that must lock the player
+    // BEFORE PlayDialogue — typically during an initial camera blend, when the dialogue
+    // hasn't started yet but the player must not be able to move.
+    /// <summary>Locks the Player (movement + character scripts) without starting a dialogue.</summary>
     public void LockPlayer()   { SetPlayerLocked(true); }
+    /// <summary>Unlocks the Player previously locked via <see cref="LockPlayer"/>.</summary>
     public void UnlockPlayer() { SetPlayerLocked(false); }
 
+    /// <summary>Plays a dialogue asset to completion, locking the Player, then invokes <paramref name="onComplete"/>.</summary>
     public void PlayDialogue(DialogueAsset dialogue, Action onComplete = null)
     {
         if (IsPlaying)
@@ -67,7 +74,7 @@ public class DialogueManager : MonoBehaviour
         IsPlaying = true;
         SetPlayerLocked(true);
 
-        // Pulisci i campi prima del fade-in così il canvas non riappare con il testo del dialogo precedente
+        // Clear the fields before fade-in so the canvas doesn't reappear with the previous dialogue's text
         if (speakerLabel != null) speakerLabel.text = "";
         if (bodyText != null) bodyText.text = "";
         if (advanceHint != null) advanceHint.SetActive(false);
@@ -97,6 +104,7 @@ public class DialogueManager : MonoBehaviour
         onComplete?.Invoke();
     }
 
+    /// <summary>Reveals <paramref name="text"/> character by character; pressing Space reveals it all at once.</summary>
     private IEnumerator TypewriterRoutine(string text)
     {
         float charDelay = 1f / Mathf.Max(charsPerSecond, 1f);
@@ -105,7 +113,7 @@ public class DialogueManager : MonoBehaviour
 
         while (i < text.Length)
         {
-            // Controlliamo l'input OGNI SINGOLO FRAME, quindi non ne perdiamo neanche uno!
+            // Check the input EVERY SINGLE FRAME, so we never miss a press!
             if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
             {
                 if (bodyText != null) bodyText.text = text;
@@ -114,8 +122,8 @@ public class DialogueManager : MonoBehaviour
 
             timer += Time.deltaTime;
 
-            // Se è passato abbastanza tempo, avanziamo con le lettere.
-            // Uso il while nel caso in cui charsPerSecond sia altissimo (permette di stampare più lettere nello stesso frame)
+            // If enough time has passed, advance the letters.
+            // Use a while in case charsPerSecond is very high (lets us print multiple letters in one frame)
             while (timer >= charDelay && i < text.Length)
             {
                 i++;
@@ -124,8 +132,8 @@ public class DialogueManager : MonoBehaviour
 
             if (bodyText != null) bodyText.text = text.Substring(0, i);
 
-            // Aspettiamo esattamente un frame per riprendere il ciclo e fare di nuovo il controllo del tasto
-            yield return null; 
+            // Wait exactly one frame before resuming the loop and re-checking the key
+            yield return null;
         }
     }
 
@@ -155,13 +163,14 @@ public class DialogueManager : MonoBehaviour
         dialogueCanvasGroup.alpha = targetAlpha;
     }
 
+    /// <summary>Locks/unlocks the Player: zeroes movement input/animation and toggles PlayerInput and character scripts.</summary>
     private void SetPlayerLocked(bool locked)
     {
         if (player != null)
         {
             if (locked)
             {
-                // Broadcast per colpire StarterAssetsInputs anche se è su un figlio del player
+                // Broadcast to reach StarterAssetsInputs even if it's on a child of the player
                 player.BroadcastMessage("MoveInput", Vector2.zero, SendMessageOptions.DontRequireReceiver);
                 player.BroadcastMessage("SprintInput", false, SendMessageOptions.DontRequireReceiver);
 
@@ -171,22 +180,22 @@ public class DialogueManager : MonoBehaviour
                     anim.SetFloat("Speed", 0f);
                     anim.SetFloat("MotionSpeed", 0f);
 
-                    // Forza l'animatore a Idle nello stesso frame, altrimenti il blend tree
-                    // continua a mostrare la corsa mentre la velocità si interpola a 0.
+                    // Force the animator to Idle in the same frame, otherwise the blend tree
+                    // keeps showing the run while the speed interpolates to 0.
                     anim.Play("Idle Walk Run Blend", 0, 0f);
                     anim.Update(0f);
                 }
             }
 
-            // Allinea con MainMenuManager.SetPlayerMovement: enable/disable del componente PlayerInput
-            // (non Activate/Deactivate, perché potrebbe essere chiamato su un componente disabilitato dal menu)
+            // Mirrors MainMenuManager.SetPlayerMovement: enable/disable the PlayerInput component
+            // (not Activate/Deactivate, since it may be called on a component disabled by the menu)
             var playerInput = player.GetComponentInChildren<PlayerInput>();
             if (playerInput != null)
             {
                 playerInput.enabled = !locked;
             }
 
-            // GetComponentsInChildren così becchiamo gli script anche se vivono su un figlio
+            // GetComponentsInChildren so we catch the scripts even if they live on a child
             MonoBehaviour[] allScripts = player.GetComponentsInChildren<MonoBehaviour>();
             foreach (MonoBehaviour script in allScripts)
             {

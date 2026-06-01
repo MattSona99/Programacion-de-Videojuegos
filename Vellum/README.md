@@ -275,7 +275,6 @@ Assets/Scripts/
 
 ## 📝 Development Notes
 
-- Code comments are written in Italian (project language); this README is the English overview.
 - The fuzzy engine is intentionally generic and shared — prefer adding **rules**, not new branching logic.
 - When swapping player skins, always keep the `Animator.Rebind()` call or animations will desync.
 - The path generator requires start/end/penultimate tiles to satisfy Manhattan-distance **and parity** constraints, or it will (by design) throw a descriptive error.

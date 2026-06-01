@@ -1,19 +1,24 @@
 using UnityEngine;
-using UnityEngine.UI; // <-- FONDAMENTALE per gestire l'Image
+using UnityEngine.UI;
 using System.Collections;
 
+/// <summary>
+/// Singleton that manages the screen-space interaction prompt ("bubble"). It follows the
+/// Player via Camera.WorldToScreenPoint and fades in/out via a coroutine, swapping the prompt
+/// icon per interactable.
+/// </summary>
 public class InteractionUIManager : MonoBehaviour
 {
     public static InteractionUIManager Instance;
 
-    [Header("Componenti UI")]
+    [Header("UI components")]
     public CanvasGroup promptCanvasGroup;
     public RectTransform promptRectTransform;
-    public Image promptImage; // <-- NUOVA VARIABILE: Il contenitore dell'immagine
+    public Image promptImage; // The image container
 
-    [Header("Impostazioni Telecamera e Posizione")]
+    [Header("Camera and position settings")]
     public Camera mainCamera;
-    public Vector2 screenOffset = new Vector2(150f, 0f); 
+    public Vector2 screenOffset = new Vector2(150f, 0f);
     public float fadeSpeed = 8f;
 
     private Coroutine _fadeCoroutine;
@@ -41,22 +46,23 @@ public class InteractionUIManager : MonoBehaviour
         }
     }
 
-    // MODIFICA: Ora chiede "Chi devo seguire?" e "Quale figura devo mostrare?"
+    /// <summary>Shows the prompt following <paramref name="playerTarget"/> with the given icon, fading in.</summary>
     public void ShowPrompt(Transform playerTarget, Sprite promptSprite)
     {
         _playerTransform = playerTarget;
-        
-        // Sostituisce l'immagine dinamicamente e riadatta le dimensioni!
+
+        // Swap the image dynamically and resize to fit
         if (promptImage != null && promptSprite != null)
         {
             promptImage.sprite = promptSprite;
-            promptImage.SetNativeSize(); 
+            promptImage.SetNativeSize();
         }
-        
+
         if (_fadeCoroutine != null) StopCoroutine(_fadeCoroutine);
         _fadeCoroutine = StartCoroutine(FadeRoutine(1f));
     }
 
+    /// <summary>Hides the prompt, fading out.</summary>
     public void HidePrompt()
     {
         _playerTransform = null;

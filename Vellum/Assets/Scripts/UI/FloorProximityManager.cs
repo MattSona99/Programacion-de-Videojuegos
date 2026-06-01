@@ -1,20 +1,24 @@
 using UnityEngine;
 
+/// <summary>
+/// Feeds the player's position into the floor material's shader each frame (e.g. for a proximity
+/// glow effect). Uses an instanced material so the shared asset isn't modified.
+/// </summary>
 public class FloorProximityManager : MonoBehaviour
 {
-    [Tooltip("Trascina qui il tuo Player")]
+    [Tooltip("Drag your Player here")]
     public Transform player;
-    
+
     private Material floorMaterial;
 
     void Start()
     {
-        // Prende il materiale del pavimento a cui è attaccato
+        // Get the material of the floor this is attached to
         Renderer rend = GetComponent<Renderer>();
         if (rend != null)
         {
-            // Usiamo material (e non sharedMaterial) così non modifichiamo l'asset globale
-            floorMaterial = rend.material; 
+            // Use material (not sharedMaterial) so we don't modify the global asset
+            floorMaterial = rend.material;
         }
     }
 
@@ -22,8 +26,8 @@ public class FloorProximityManager : MonoBehaviour
     {
         if (player != null && floorMaterial != null)
         {
-            // Invia costantemente le coordinate del player allo Shader!
-            // IMPORTANTE: il nome tra virgolette DEVE essere identico al "Reference" del Vector3 nel tuo Shader Graph
+            // Continuously send the player's coordinates to the shader.
+            // IMPORTANT: the name in quotes MUST match the Vector3 "Reference" in your Shader Graph
             floorMaterial.SetVector("_PlayerPos", player.position);
         }
     }

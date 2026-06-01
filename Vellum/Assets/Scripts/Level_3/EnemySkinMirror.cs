@@ -1,16 +1,17 @@
 using UnityEngine;
 
-// Livello finale ("Lo Specchio d'Acqua"). Il boss è il doppelganger del Player
-// ma di SESSO OPPOSTO: quando il Player cambia skin col libro
-// (PlayerSkinSwitcher), il boss passa all'altra forma. Riusa lo stesso pattern
-// di PlayerSkinSwitcher (toggle delle geometrie + Animator.Rebind richiesto da
-// CLAUDE.md §3.3) ma applicato all'opposto.
+/// <summary>
+/// Final level ("The Mirror of Water"). The boss is the Player's doppelganger but of the OPPOSITE
+/// SEX: when the Player swaps skin with the book (PlayerSkinSwitcher), the boss switches to the
+/// other form. Reuses the same pattern as PlayerSkinSwitcher (geometry toggle + the Animator.Rebind
+/// required by CLAUDE.md §3.3) but applied to the opposite.
+/// </summary>
 public class EnemySkinMirror : MonoBehaviour
 {
-    [Header("Sorgente da rispecchiare")]
+    [Header("Source to mirror")]
     [SerializeField] private PlayerSkinSwitcher playerSkin;
 
-    [Header("Geometrie del boss")]
+    [Header("Boss geometries")]
     [SerializeField] private GameObject maleGeometry;
     [SerializeField] private GameObject femaleGeometry;
 
@@ -26,13 +27,13 @@ public class EnemySkinMirror : MonoBehaviour
 
     void Start()
     {
-        // Stato iniziale: opposto alla skin corrente del Player.
+        // Initial state: opposite of the Player's current skin.
         if (playerSkin != null) ApplyOpposite(playerSkin.IsMale);
     }
 
     private void OnPlayerSkinChanged(bool playerMale) => ApplyOpposite(playerMale);
 
-    // Player maschile → boss femminile, e viceversa.
+    /// <summary>Male Player → female boss, and vice versa; rebinds the active geometry's Animator.</summary>
     private void ApplyOpposite(bool playerMale)
     {
         bool bossMale = !playerMale;
@@ -40,8 +41,8 @@ public class EnemySkinMirror : MonoBehaviour
         if (maleGeometry != null) maleGeometry.SetActive(bossMale);
         if (femaleGeometry != null) femaleGeometry.SetActive(!bossMale);
 
-        // Riallinea l'Animator alla geometria attiva (senza Rebind le animazioni
-        // possono restare bloccate sulla skin precedente).
+        // Re-align the Animator to the active geometry (without Rebind the animations
+        // may stay stuck on the previous skin).
         GameObject active = bossMale ? maleGeometry : femaleGeometry;
         if (active != null && active.TryGetComponent(out Animator animator))
         {

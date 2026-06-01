@@ -1,49 +1,49 @@
 using System.Collections;
 using UnityEngine;
 
-// Transizione "celeste" del livello finale. NIENTE più capovolgimento del mondo
-// (vecchio approccio a due CinemachineCamera): col setup a specchio (layer
-// UpWorld/DownWorld + MirrorShader/MirrorCameraSync) gli attori restano nel
-// mondo normale, a cambiare è solo il CIELO. FlipTo fa ruotare i corpi celesti,
-// incrocia le luci e scambia skybox + layer dei due corpi, così la Fase 1 (sole,
-// cielo azzurro) diventa gradualmente Fase 2 (luna rossa, cielo rosso) e viceversa.
-//
-// Due skybox distinti non si possono crossfadere senza uno shader di blend:
-// qui si scambiano a metà transizione, mascherati dalla rotazione e dal lerp
-// delle luci (scelta concordata). Mantiene l'API usata da MirrorDuelDirector:
-// ApplyImmediate(moon) e FlipTo(moon). Segue lo schema cinematic di CLAUDE.md
-// §3.4 (lock input → sequenza a coroutine → restore), senza Cinemachine.
+/// <summary>
+/// "Celestial" transition of the final level. NO more world flipping (old two-CinemachineCamera
+/// approach): with the mirror setup (UpWorld/DownWorld layers + MirrorShader/MirrorCameraSync) the
+/// actors stay in the normal world; only the SKY changes. FlipTo rotates the celestial bodies,
+/// crossfades the lights, and swaps the skybox + the two bodies' layers, so Phase 1 (sun, blue sky)
+/// gradually becomes Phase 2 (red moon, red sky) and vice versa.
+///
+/// Two distinct skyboxes can't crossfade without a blend shader: here they're swapped at the
+/// midpoint, masked by the rotation and the light lerp. Keeps the API used by MirrorDuelDirector:
+/// ApplyImmediate(moon) and FlipTo(moon). Follows the CLAUDE.md §3.4 cinematic pattern
+/// (lock input → coroutine sequence → restore), without Cinemachine.
+/// </summary>
 public class MirrorFlipDirector : MonoBehaviour
 {
-    [Header("Corpi celesti (rotazione)")]
-    [Tooltip("Pivot comune di sole+luna: se assegnato ruota questo (per un effetto 'orbita' mettili come figli, offset dal centro). In alternativa o in aggiunta usa sunObject/moonObject.")]
+    [Header("Celestial bodies (rotation)")]
+    [Tooltip("Common pivot of sun+moon: if assigned, this is rotated (for an 'orbit' effect make them children, offset from the center). Alternatively or additionally use sunObject/moonObject.")]
     [SerializeField] private Transform celestialPivot;
     [SerializeField] private Transform sunObject;
     [SerializeField] private Transform moonObject;
-    [Tooltip("Rotazione (gradi) applicata passando a Luna; tornando a Sole si srotola. Es. (0,0,180). Lascia (0,0,0) per non ruotare.")]
+    [Tooltip("Rotation (degrees) applied when switching to Moon; switching back to Sun unwinds it. E.g. (0,0,180). Leave (0,0,0) for no rotation.")]
     [SerializeField] private Vector3 flipRotation = new Vector3(0f, 0f, 180f);
 
-    [Header("Atmosfera (due skybox)")]
+    [Header("Atmosphere (two skyboxes)")]
     [SerializeField] private Material sunSkybox;
     [SerializeField] private Material moonSkybox;
-    [Tooltip("Ambient (modalità Flat) dei due mondi: lerpato gradualmente durante la transizione.")]
+    [Tooltip("Ambient (Flat mode) of the two worlds: lerped gradually during the transition.")]
     [SerializeField] private Color sunAmbient = new Color(0.6f, 0.7f, 0.9f);
     [SerializeField] private Color moonAmbient = new Color(0.5f, 0.1f, 0.1f);
 
-    [Header("Scambio mondi (layer dei corpi celesti)")]
-    [Tooltip("Se attivo, a metà transizione scambia i layer di sunObject/moonObject tra UpWorld e DownWorld, così sopra/sotto lo specchio si invertono. NON tocca gli attori.")]
+    [Header("World swap (celestial bodies' layers)")]
+    [Tooltip("If on, at the midpoint it swaps sunObject/moonObject's layers between UpWorld and DownWorld, so above/below the mirror invert. Does NOT touch the actors.")]
     [SerializeField] private bool swapWorldLayers = true;
     [SerializeField] private string upWorldLayer = "UpWorld";
     [SerializeField] private string downWorldLayer = "DownWorld";
 
-    [Header("Luci (crossfade)")]
+    [Header("Lights (crossfade)")]
     [SerializeField] private Light sunLight;
     [SerializeField] private Light moonLight;
-    [Tooltip("Intensità piena della rispettiva luce (l'altra va a 0 durante il crossfade).")]
+    [Tooltip("Full intensity of the respective light (the other goes to 0 during the crossfade).")]
     [SerializeField] private float sunLightIntensity = 1f;
     [SerializeField] private float moonLightIntensity = 1f;
 
-    [Header("Tempi")]
+    [Header("Timing")]
     [SerializeField] private float blendDuration = 2f;
 
     private Coroutine _routine;
@@ -56,7 +56,7 @@ public class MirrorFlipDirector : MonoBehaviour
         if (moonObject != null) _moonBaseRot = moonObject.localRotation;
     }
 
-    // Stato iniziale senza transizione (in Start del director: ApplyImmediate(false)).
+    /// <summary>Initial state with no transition (called in the director's Start: ApplyImmediate(false)).</summary>
     public void ApplyImmediate(bool moon)
     {
         SetRotation(moon ? 1f : 0f);
@@ -66,8 +66,7 @@ public class MirrorFlipDirector : MonoBehaviour
         ApplySkybox(moon);
     }
 
-    // Passa a Luna (moon = true) o a Sole (moon = false). Blocca il Player per
-    // tutta la transizione.
+    /// <summary>Switches to Moon (moon = true) or Sun (moon = false). Locks the Player for the whole transition.</summary>
     public IEnumerator FlipTo(bool moon)
     {
         if (_routine != null) StopCoroutine(_routine);
@@ -89,14 +88,14 @@ public class MirrorFlipDirector : MonoBehaviour
             float k = Mathf.Clamp01(t / dur);
             float e = k * k * (3f - 2f * k); // smoothstep
 
-            // peso del mondo Luna (0 = sole, 1 = luna), coerente col verso del flip
+            // Moon-world weight (0 = sun, 1 = moon), consistent with the flip direction
             float moonW = moon ? e : 1f - e;
 
             SetRotation(moonW);
             SetLights(moonW);
             RenderSettings.ambientLight = Color.Lerp(sunAmbient, moonAmbient, moonW);
 
-            // due skybox + scambio layer: a metà, mascherati da rotazione e luci
+            // two skyboxes + layer swap: at the midpoint, masked by rotation and lights
             if (!swappedAtHalf && k >= 0.5f)
             {
                 ApplySkybox(moon);
@@ -116,7 +115,7 @@ public class MirrorFlipDirector : MonoBehaviour
         _routine = null;
     }
 
-    // moonWeight: 0 = posa Sole (base), 1 = posa Luna (base * flipRotation).
+    // moonWeight: 0 = Sun pose (base), 1 = Moon pose (base * flipRotation).
     private void SetRotation(float moonWeight)
     {
         Quaternion flip = Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(flipRotation), moonWeight);
@@ -139,8 +138,8 @@ public class MirrorFlipDirector : MonoBehaviour
         DynamicGI.UpdateEnvironment();
     }
 
-    // Sole e Luna si scambiano tra UpWorld/DownWorld: sopra/sotto lo specchio si
-    // invertono. In Fase Sole il sole è in UpWorld; in Fase Luna ci va la luna.
+    // Sun and Moon swap between UpWorld/DownWorld: above/below the mirror invert. In Sun
+    // phase the sun is in UpWorld; in Moon phase the moon goes there.
     private void SetWorldLayers(bool moon)
     {
         if (!swapWorldLayers) return;

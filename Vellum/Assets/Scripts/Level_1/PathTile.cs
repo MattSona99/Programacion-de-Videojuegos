@@ -1,19 +1,24 @@
 using UnityEngine;
 
+/// <summary>
+/// A single floor tile of the Act 1 path puzzle. Lights up (emissive) per role — robot trail,
+/// player step, wrong, hint — and toggles its solid collider so wrong tiles drop the player.
+/// Driven by trigger callbacks and by <see cref="PathPuzzleManager"/>.
+/// </summary>
 public class PathTile : MonoBehaviour
 {
-    [Header("Colori Base")]
-    public Color robotColor = new Color(0.5f, 0f, 1f); // Viola
-    public Color playerColor = Color.blue;             // Blu
-    public Color wrongColor = Color.red;               // Rosso
-    public Color defaultColor = Color.black;           // Spenta (Nera/Invisibile)
-    public Color hintColor = Color.cyan;               // Aiuto a memoria (Memory Pulse)
+    [Header("Base colors")]
+    public Color robotColor = new Color(0.5f, 0f, 1f); // Purple
+    public Color playerColor = Color.blue;             // Blue
+    public Color wrongColor = Color.red;               // Red
+    public Color defaultColor = Color.black;           // Off (black/invisible)
+    public Color hintColor = Color.cyan;               // Memory hint (Memory Pulse)
 
-    [Header("Intensità Luce")]
-    public float glowIntensity = 3f; // Quanto è forte la luce (aumentalo se le vedi buie)
+    [Header("Light intensity")]
+    public float glowIntensity = 3f; // How strong the light is (raise it if the tiles look dim)
 
     [Header("Collider")]
-    [Tooltip("Il collider NON-trigger su cui cammina il player. Va spento sulle tile sbagliate per farlo cadere.")]
+    [Tooltip("The NON-trigger collider the player walks on. Disabled on wrong tiles to make the player fall.")]
     [SerializeField] private Collider solidCollider;
 
     private Material myMaterial;
@@ -26,27 +31,29 @@ public class PathTile : MonoBehaviour
         Renderer rend = GetComponent<Renderer>();
         if (rend == null)
         {
-            Debug.LogError($"[PathTile] {name}: nessun Renderer trovato — la tile non potrà accendersi.", this);
+            Debug.LogError($"[PathTile] {name}: no Renderer found — the tile won't be able to light up.", this);
             return;
         }
         myMaterial = rend.material;
         manager = FindFirstObjectByType<PathPuzzleManager>();
 
-        // _EMISSION va attivata via script perché Unity strippa la keyword in build
-        // se il materiale non aveva emission attiva in editor.
+        // _EMISSION must be enabled via script because Unity strips the keyword in builds
+        // if the material didn't have emission enabled in the editor.
         myMaterial.EnableKeyword("_EMISSION");
 
         ResetTile();
     }
 
+    /// <summary>Enables/disables the walkable collider (disabled = the player falls through).</summary>
     public void SetSolid(bool solid)
     {
         if (solidCollider != null) solidCollider.enabled = solid;
     }
 
+    /// <summary>Sets the tile's base color and emission (off when set to <see cref="defaultColor"/>).</summary>
     public void SetColor(Color baseColor)
     {
-        // Idempotenza: evita set ripetuti dello stesso valore quando chiamato da OnTriggerStay.
+        // Idempotency: avoids repeated sets of the same value when called from OnTriggerStay.
         if (_hasColor && _currentBase == baseColor) return;
         _currentBase = baseColor;
         _hasColor = true;
@@ -68,7 +75,7 @@ public class PathTile : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        // Se sta cadendo (Fail) non accendiamo nulla
+        // If the player is falling (Fail), don't light anything
         if (manager != null && manager.isPlayerFalling) return;
 
         if (other.CompareTag("Robot"))
@@ -83,9 +90,9 @@ public class PathTile : MonoBehaviour
 
     private void OnTriggerStay(Collider other)
     {
-        // Riapplica il colore se l'Exit ha sparato per sbaglio (es. CharacterController
-        // che entra-esce dal trigger a fronte degli step fisici). In modalità puzzle attivo
-        // lasciamo che CheckPlayerStep abbia l'ultima parola e non facciamo nulla.
+        // Reapply the color if Exit fired by mistake (e.g. a CharacterController entering/
+        // exiting the trigger due to physical steps). In active puzzle mode we let
+        // CheckPlayerStep have the final word and do nothing here.
         if (manager != null && manager.isPlayerFalling) return;
         if (manager != null && manager.isPuzzleActive) return;
 
@@ -101,15 +108,14 @@ public class PathTile : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        // Evitiamo spegnimenti accidentali se il player sta cadendo
+        // Avoid accidental turn-offs if the player is falling
         if (manager != null && manager.isPlayerFalling) return;
 
         if (other.CompareTag("Robot"))
         {
-            // In puzzle attivo la scia di Jammo deve restare accesa finché il
-            // player non riprende il controllo: lo spegnimento è centralizzato in
-            // PathPuzzleManager.ClearRobotTrail(). Fuori puzzle (free exploration)
-            // resta il comportamento di reset al volo.
+            // In active puzzle mode Jammo's trail must stay lit until the player regains
+            // control: turning it off is centralized in PathPuzzleManager.ClearRobotTrail().
+            // Outside the puzzle (free exploration) the on-the-fly reset behavior remains.
             if (manager == null || !manager.isPuzzleActive)
             {
                 ResetTile();
@@ -117,7 +123,7 @@ public class PathTile : MonoBehaviour
         }
         else if (other.CompareTag("Player"))
         {
-            // Spegniamo la tile se il puzzle non è iniziato o se il player è uscito
+            // Turn the tile off if the puzzle hasn't started or the player has left
             if (manager != null && !manager.isPuzzleActive)
             {
                 ResetTile();

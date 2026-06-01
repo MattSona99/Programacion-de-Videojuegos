@@ -1,32 +1,33 @@
 using UnityEngine;
 
+/// <summary>Spins a pickup around Y and optionally bobs it up and down with a sine curve for a floating look.</summary>
 public class PickupRotator : MonoBehaviour
 {
-    [Header("Rotazione")]
-    [Tooltip("Velocità di rotazione sull'asse Y")]
-    public float rotationSpeed = 100f; 
+    [Header("Rotation")]
+    [Tooltip("Rotation speed around the Y axis")]
+    public float rotationSpeed = 100f;
 
-    [Header("Fluttuazione (Su e Giù)")]
+    [Header("Bobbing (up and down)")]
     public bool enableBobbing = true;
-    [Tooltip("Quanto velocemente va su e giù")]
-    public float bobbingSpeed = 2f;    
-    [Tooltip("Di quanto si alza e si abbassa")]
-    public float bobbingAmount = 0.2f; 
+    [Tooltip("How fast it bobs up and down")]
+    public float bobbingSpeed = 2f;
+    [Tooltip("How far it rises and lowers")]
+    public float bobbingAmount = 0.2f;
 
     private Vector3 _startPosition;
 
     void Start()
     {
-        // Salviamo la posizione iniziale da cui partirà l'effetto su e giù
+        // Save the starting position the bobbing effect originates from
         _startPosition = transform.localPosition;
     }
 
     void Update()
     {
-        // 1. ROTAZIONE: Lo fa girare su se stesso (sull'asse Y)
+        // 1. ROTATION: spins it around itself (Y axis)
         transform.Rotate(Vector3.up * rotationSpeed * Time.deltaTime, Space.World);
 
-        // 2. FLUTTUAZIONE: Usa una curva matematica (Seno) per un movimento morbido
+        // 2. BOBBING: uses a sine curve for smooth motion
         if (enableBobbing)
         {
             float newY = _startPosition.y + Mathf.Sin(Time.time * bobbingSpeed) * bobbingAmount;

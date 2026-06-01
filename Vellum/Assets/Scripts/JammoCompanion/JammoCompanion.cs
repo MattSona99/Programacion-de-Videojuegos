@@ -2,24 +2,29 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
+/// <summary>
+/// Drives Jammo's one-time activation in Act 1: on interaction it (optionally) plays an
+/// activation dialogue, runs the get-up animation, locks the Player meanwhile, then starts the
+/// path puzzle and hands control over to JammoGuideController.
+/// </summary>
 public class JammoCompanion : MonoBehaviour
 {
-    [Header("Connessione al Puzzle")]
-    [Tooltip("Trascina qui l'oggetto PuzzleManager dalla tua scena")]
+    [Header("Puzzle connection")]
+    [Tooltip("Drag the PuzzleManager object from your scene here")]
     public PathPuzzleManager puzzleManager;
 
-    [Header("Attivazione")]
-    [Tooltip("Dialogo che parte la prima volta che il player entra nel trigger di Jammo")]
+    [Header("Activation")]
+    [Tooltip("Dialogue played the first time the player enters Jammo's trigger")]
     public DialogueAsset activationDialogue;
 
-    [Tooltip("Nome del bool nell'Animator che fa partire l'animazione di alzata")]
+    [Tooltip("Name of the Animator bool that starts the get-up animation")]
     public string animatorActivatedBool = "IsActivated";
 
-    [Tooltip("Secondi di attesa dopo il dialogo prima che Jammo inizi a camminare")]
+    [Tooltip("Seconds to wait after the dialogue before Jammo starts walking")]
     public float getUpDelay = 5f;
 
-    [Header("Blocco Player")]
-    [Tooltip("Riferimento al CinematicFallManager (stesso che usa JammoGuideController). Serve a bloccare il Player nei secondi in cui Jammo si alza.")]
+    [Header("Player lock")]
+    [Tooltip("Reference to the CinematicFallManager (the same one JammoGuideController uses). Used to lock the Player while Jammo gets up.")]
     public CinematicFallManager cinematicManager;
 
     private Animator anim;
@@ -30,11 +35,12 @@ public class JammoCompanion : MonoBehaviour
     {
         anim = GetComponent<Animator>();
         agent = GetComponent<NavMeshAgent>();
-        
-        // Disabilitiamo subito l'Agent, non ci serve più per l'inseguimento libero!
+
+        // Disable the Agent right away: we no longer use it for free chasing.
         if (agent != null) agent.enabled = false;
     }
 
+    /// <summary>Wired to Jammo's activation trigger. Plays the dialogue (if any), then runs the get-up sequence once.</summary>
     public void HandleActivationInteraction()
     {
         if (_hasBeenTriggered) return;
@@ -52,40 +58,41 @@ public class JammoCompanion : MonoBehaviour
         }
     }
 
+    /// <summary>Locks the Player, plays the get-up animation, waits, then starts the puzzle and disables this script.</summary>
     private IEnumerator GetUpAndActivateRoutine()
     {
-        // keepLookActive=true di default → mouse/right-stick continuano a muovere la camera,
-        // solo Move/Sprint/Jump vengono congelati. Lo sblocco lo farà JammoGuideController
-        // a fine camminata del robottino.
+        // keepLookActive=true by default → mouse/right-stick keep moving the camera,
+        // only Move/Sprint/Jump are frozen. JammoGuideController unlocks it at the end
+        // of the little robot's walk.
         if (cinematicManager != null)
         {
             cinematicManager.SetPlayerMovement(false);
         }
 
-        // 1. Fai partire l'animazione di risveglio
+        // 1. Start the wake-up animation
         if (anim != null && !string.IsNullOrEmpty(animatorActivatedBool))
         {
             anim.SetBool(animatorActivatedBool, true);
         }
 
-        // 2. Aspetta che finisca di alzarsi
+        // 2. Wait for the get-up to finish
         yield return new WaitForSeconds(getUpDelay);
 
-        // 3. INIZIA IL PUZZLE!
+        // 3. START THE PUZZLE!
         if (puzzleManager != null)
         {
-            Debug.Log("Jammo si è alzato! Inizio la sequenza del puzzle.");
+            Debug.Log("Jammo got up! Starting the puzzle sequence.");
             puzzleManager.StartPuzzleSequence();
         }
         else
         {
-            Debug.LogError("Attenzione: Manca il PuzzleManager nello script di JammoCompanion!");
-            // Senza puzzleManager nessuno sbloccherebbe il Player: lo sblocchiamo qui per evitare lo stuck.
+            Debug.LogError("Warning: PuzzleManager is missing on the JammoCompanion script!");
+            // Without puzzleManager nothing would unlock the Player: unlock it here to avoid a stuck state.
             if (cinematicManager != null) cinematicManager.SetPlayerMovement(true);
         }
 
-        // 4. Disattiviamo questo script (JammoCompanion) perché ora Jammo 
-        // è controllato da JammoGuideController!
-        this.enabled = false; 
+        // 4. Disable this script (JammoCompanion) because Jammo is now
+        // controlled by JammoGuideController!
+        this.enabled = false;
     }
 }

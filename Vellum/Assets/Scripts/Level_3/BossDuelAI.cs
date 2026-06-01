@@ -1,27 +1,27 @@
 using System.Collections;
 using UnityEngine;
 
-// IA del doppelganger del livello finale. Separata da EnemyAI (l'arena a ondate):
-// qui c'è un solo boss, niente coordinator/ventaglio. Locomozione via
-// CharacterController (niente NavMesh).
-//
-// Ritmo di combattimento a finestre, per non essere monotono:
-//   - AGGRO: insegue il bersaglio e, in range, esegue una COMBO (più colpi di
-//     fila, come la combo del Player). Resta fermo durante la combo (no slide).
-//   - REPOSITION: corre (run) verso un punto casuale per riposizionarsi.
-//   - GUARD: arrivato, alza la guardia DA FERMO e aspetta il Player; poi decide
-//     se attaccare o riposizionarsi di nuovo.
-// Sopra a tutto: DIFESA REATTIVA — quando vede partire lo swing del Player
-// (PlayerMeleeAttack.IsSwinging) ed è vicino e di fronte, con una certa
-// probabilità alza la guardia per bloccare quel colpo (non sempre).
-//
-// Cammina E corre: l'Animator (clone del Player) ha un blend tree walk/run su
-// 'Speed' (m/s reali) + 'MotionSpeed'. Avvicinamento = walk, riposizionamento = run.
-//
-// Fase 2 (Luna): potenziato; può STACCARSI dal Player per intercettare Jammo
-// carico (BossFuzzyBrain). Il director mette in pausa il boss durante i flip e
-// nella finestra del colpo finale (SetPaused). Niente KnockbackReceiver: il boss
-// combatte piantato.
+/// <summary>
+/// AI for the final-level doppelganger. Separate from EnemyAI (the wave arena): here there's a
+/// single boss, no coordinator/fan. Locomotion via CharacterController (no NavMesh).
+///
+/// Windowed combat pacing, to avoid being monotonous:
+///   - AGGRO: chases the target and, in range, performs a COMBO (several hits in a row, like the
+///     Player's combo). Stays still during the combo (no slide).
+///   - REPOSITION: runs to a random point to reposition.
+///   - GUARD: on arrival, raises the guard WHILE STILL and waits for the Player; then decides
+///     whether to attack or reposition again.
+/// On top of all: REACTIVE DEFENSE — when it sees the Player's swing start
+/// (PlayerMeleeAttack.IsSwinging) and is close and facing, it raises the guard probabilistically
+/// to block that hit (not always).
+///
+/// Walks AND runs: the Animator (a clone of the Player) has a walk/run blend tree on 'Speed'
+/// (real m/s) + 'MotionSpeed'. Approach = walk, reposition = run.
+///
+/// Phase 2 (Moon): empowered; can BREAK OFF from the Player to intercept a carrying Jammo
+/// (BossFuzzyBrain). The director pauses the boss during flips and in the final-hit window
+/// (SetPaused). No KnockbackReceiver: the boss fights planted.
+/// </summary>
 [RequireComponent(typeof(Health))]
 public class BossDuelAI : MonoBehaviour
 {
@@ -33,90 +33,90 @@ public class BossDuelAI : MonoBehaviour
 
     private enum State { Aggro, Reposition, Guard, Kite, SeekHealth }
 
-    [Header("Bersagli")]
+    [Header("Targets")]
     [SerializeField] private Transform player;
     [SerializeField] private JammoCarrier jammo;
-    [Tooltip("PlayerMeleeAttack del Player (per la difesa reattiva). Se vuoto lo cerca tra i figli del Player.")]
+    [Tooltip("The Player's PlayerMeleeAttack (for reactive defense). If empty, found among the Player's children.")]
     [SerializeField] private PlayerMeleeAttack playerMelee;
 
-    [Header("Movimento (walk/run)")]
+    [Header("Movement (walk/run)")]
     [SerializeField] private float walkSpeed = 2f;
     [SerializeField] private float runSpeed = 4.5f;
-    [Tooltip("Oltre questa distanza dal bersaglio corre (run) invece di camminare.")]
+    [Tooltip("Beyond this distance from the target it runs instead of walking.")]
     [SerializeField] private float runDistance = 4f;
     [SerializeField] private float turnSpeed = 10f;
     [SerializeField] private float gravity = -20f;
     [SerializeField] private float stopDistance = 1.6f;
 
-    [Header("Attacco / combo")]
+    [Header("Attack / combo")]
     [SerializeField] private float attackRange = 1.9f;
-    [Tooltip("Numero di colpi della combo (= combo a 4 dell'Animator).")]
+    [Tooltip("Number of combo hits (= the Animator's 4-hit combo).")]
     [SerializeField] private int comboLength = 4;
-    [Tooltip("Intervallo tra un colpo e l'altro della combo.")]
+    [Tooltip("Interval between one combo hit and the next.")]
     [SerializeField] private float comboHitInterval = 0.28f;
-    [Tooltip("Recupero dopo una combo prima di poterne fare un'altra.")]
+    [Tooltip("Recovery after a combo before another can be done.")]
     [SerializeField] private float comboRecovery = 1.2f;
     [SerializeField] private float attackDamage = 12f;
 
-    [Header("Finestre attacco/difesa")]
-    [Tooltip("Durata della finestra d'attacco prima di riposizionarsi.")]
+    [Header("Attack/defense windows")]
+    [Tooltip("Duration of the attack window before repositioning.")]
     [SerializeField] private float aggroWindow = 5f;
-    [Tooltip("Tempo massimo di attesa in guardia prima di ridecidere.")]
+    [Tooltip("Maximum wait in guard before re-deciding.")]
     [SerializeField] private float guardWindow = 3f;
-    [Tooltip("Raggio attorno al Player entro cui scegliere il punto di riposizionamento.")]
+    [Tooltip("Radius around the Player within which to pick the reposition point.")]
     [SerializeField] private float repositionRadius = 6f;
     [SerializeField] private float repositionArriveDistance = 0.6f;
-    [Tooltip("Distanza minima del punto di riposizionamento dalla posizione ATTUALE del boss: evita di 'arrivare' subito e ciclare Reposition→Guard→Reposition sul posto.")]
+    [Tooltip("Minimum distance of the reposition point from the boss's CURRENT position: avoids 'arriving' instantly and cycling Reposition→Guard→Reposition in place.")]
     [SerializeField] private float repositionMinDistance = 3.5f;
-    [Tooltip("Tempo massimo per raggiungere il punto (anti-stallo).")]
+    [Tooltip("Maximum time to reach the point (anti-stall).")]
     [SerializeField] private float repositionTimeout = 4f;
-    [Tooltip("Distanza a cui, in guardia, il Player è 'arrivato' e il boss ridecide.")]
+    [Tooltip("Distance at which, in guard, the Player has 'arrived' and the boss re-decides.")]
     [SerializeField] private float engageDistance = 3f;
     [Range(0f, 1f)]
-    [Tooltip("Probabilità di passare all'attacco (anziché ri-riposizionarsi) quando esce dalla guardia.")]
+    [Tooltip("Probability of switching to attack (rather than repositioning again) when leaving guard.")]
     [SerializeField] private float attackAfterGuardChance = 0.7f;
 
-    [Header("Kiting (richiede layer Animator upper-body, altrimenti scivola)")]
+    [Header("Kiting (requires an upper-body Animator layer, otherwise it slides)")]
     [Range(0f, 1f)]
-    [Tooltip("Probabilità di fare kiting (circolare a guardia alta) invece del riposizionamento fermo, a fine finestra d'attacco. Tieni 0 finché non hai il layer mascherato.")]
+    [Tooltip("Probability of kiting (circling at high guard) instead of stationary repositioning at the end of the attack window. Keep 0 until you have the masked layer.")]
     [SerializeField] private float kiteChance = 0f;
     [SerializeField] private float kiteWindow = 4f;
-    [Tooltip("Distanza dal Player che il boss cerca di mantenere mentre fa kiting.")]
+    [Tooltip("Distance from the Player the boss tries to keep while kiting.")]
     [SerializeField] private float kiteDistance = 4f;
     [SerializeField] private float kiteSpeed = 2.5f;
-    [Tooltip("Ogni quanti secondi inverte il senso di rotazione attorno al Player.")]
+    [Tooltip("How often (seconds) it flips the rotation direction around the Player.")]
     [SerializeField] private float kiteFlipInterval = 1.5f;
 
-    [Header("Difesa reattiva")]
+    [Header("Reactive defense")]
     [Range(0f, 1f)]
-    [Tooltip("Probabilità di alzare la guardia quando vede partire lo swing del Player.")]
+    [Tooltip("Probability of raising the guard when it sees the Player's swing start.")]
     [SerializeField] private float reactiveBlockChance = 0.45f;
     [SerializeField] private float reactiveBlockTime = 0.6f;
-    [Tooltip("Distanza massima a cui reagisce allo swing del Player.")]
+    [Tooltip("Maximum distance at which it reacts to the Player's swing.")]
     [SerializeField] private float reactiveBlockRange = 2.6f;
 
-    [Header("Potenziamento Fase 2 (Luna)")]
-    [Tooltip("Moltiplicatore di walk/run quando è Fase Luna.")]
+    [Header("Phase 2 (Moon) empowerment")]
+    [Tooltip("Walk/run multiplier when in Moon phase.")]
     [SerializeField] private float moonSpeedMultiplier = 1.3f;
     [SerializeField] private float moonAttackDamage = 18f;
     [SerializeField] private float moonComboRecovery = 0.7f;
 
-    [Header("Decisione fuzzy (solo Fase 2)")]
+    [Header("Fuzzy decision (Phase 2 only)")]
     [SerializeField] private float decisionInterval = 0.2f;
     [Range(0f, 1f)]
     [SerializeField] private float interceptThreshold = 0.5f;
-    [Tooltip("Oltre questa distanza il boss MOLLA l'intercetto di Jammo (isteresi: una volta agganciato insegue finché Jammo è carico e più vicino di così).")]
+    [Tooltip("Beyond this distance the boss DROPS the Jammo intercept (hysteresis: once locked on, it chases while Jammo is carrying and closer than this).")]
     [SerializeField] private float interceptGiveUpDistance = 12f;
 
-    [Header("Recupero vita (pickup neutri)")]
-    [Tooltip("Spawner dei pickup di vita del duello. Se vuoto, il boss non cerca mai vita.")]
+    [Header("Health recovery (neutral pickups)")]
+    [Tooltip("The duel's health pickup spawner. If empty, the boss never seeks health.")]
     [SerializeField] private DuelHealthSpawner healthSpawner;
     [Range(0f, 1f)]
-    [Tooltip("Soglia fuzzy sopra cui il boss si stacca per andare a curarsi.")]
+    [Tooltip("Fuzzy threshold above which the boss breaks off to go heal.")]
     [SerializeField] private float seekHealthThreshold = 0.55f;
-    [Tooltip("Ritardo prima che il boss 'noti' un pickup appena comparso (head start al Player).")]
+    [Tooltip("Delay before the boss 'notices' a just-appeared pickup (head start for the Player).")]
     [SerializeField] private float pickupReactionDelay = 1.5f;
-    [Tooltip("Velocità con cui corre verso il pickup.")]
+    [Tooltip("Speed at which it runs toward the pickup.")]
     [SerializeField] private float seekHealthSpeed = 4.5f;
 
     private Health _health;
@@ -163,8 +163,10 @@ public class BossDuelAI : MonoBehaviour
         EnterState(State.Aggro);
     }
 
+    /// <summary>Switches the boss to Moon phase (empowered) or back to Sun phase.</summary>
     public void SetMoonPhase(bool moon) => _moonPhase = moon;
 
+    /// <summary>Pauses/resumes the boss (used by the director during flips and the final-hit window). On pause it cancels combo, drops guard, and stops.</summary>
     public void SetPaused(bool paused)
     {
         _paused = paused;
@@ -187,23 +189,23 @@ public class BossDuelAI : MonoBehaviour
 
         if (_paused) return;
 
-        // --- Difesa reattiva: rising edge dello swing del Player ---
+        // --- Reactive defense: rising edge of the Player's swing ---
         DetectReactiveBlock();
 
         bool reactiveActive = Time.time < _reactiveBlockUntil;
 
-        // Durante una combo o un blocco reattivo il boss resta fermo (no slide):
-        // solo gravità + facing verso il Player.
+        // During a combo or a reactive block the boss stays still (no slide):
+        // only gravity + facing toward the Player.
         if (_comboRoutine != null || reactiveActive)
         {
-            ApplyGuard(reactiveActive); // la combo NON alza la guardia; il blocco reattivo sì
+            ApplyGuard(reactiveActive); // the combo does NOT raise the guard; the reactive block does
             if (player != null) FaceDirection(Planar(player.position - transform.position));
             SetAnimFloat(SpeedHash, 0f);
             MoveStep(Vector3.zero, 0f);
             return;
         }
 
-        // Priorità massima: se ferito e c'è un pickup pronto e vicino, va a curarsi.
+        // Top priority: if wounded and there's a ready pickup nearby, go heal.
         MaybeDecideSeekHealth();
 
         Transform target = ResolveTarget();
@@ -225,7 +227,7 @@ public class BossDuelAI : MonoBehaviour
         }
     }
 
-    // ---- Stati ------------------------------------------------------------
+    // ---- States -----------------------------------------------------------
 
     private void TickAggro(Transform target)
     {
@@ -274,7 +276,7 @@ public class BossDuelAI : MonoBehaviour
 
         Vector3 dir = to / Mathf.Max(dist, 0.001f);
         FaceDirection(dir);
-        MoveAt(dir, runSpeed); // riposizionamento = corsa
+        MoveAt(dir, runSpeed); // reposition = run
     }
 
     private void TickGuard()
@@ -290,16 +292,14 @@ public class BossDuelAI : MonoBehaviour
 
         if (playerDist <= engageDistance || _stateTimer <= 0f)
         {
-            // Niente due riposizionamenti di fila: se siamo arrivati qui da un
-            // Reposition, si torna ad attaccare (evita il vagare passivo).
+            // No two repositions in a row: if we got here from a Reposition, go back to
+            // attacking (avoids passive wandering).
             if (_lastWasReposition || Random.value < attackAfterGuardChance) EnterState(State.Aggro);
             else EnterState(State.Reposition);
         }
     }
 
-    // Kiting: circola attorno al Player a guardia alta mantenendo kiteDistance,
-    // invertendo ogni tanto il senso. Richiede il layer Animator upper-body
-    // (altrimenti scivola). Alla fine torna in attacco.
+    /// <summary>Kiting: circles the Player at high guard keeping kiteDistance, flipping direction periodically. Requires the upper-body Animator layer (otherwise it slides). Returns to attacking at the end.</summary>
     private void TickKite()
     {
         ApplyGuard(true);
@@ -315,7 +315,7 @@ public class BossDuelAI : MonoBehaviour
         if (_flipTimer <= 0f) { _strafeSign = -_strafeSign; _flipTimer = kiteFlipInterval; }
 
         Vector3 strafe = Vector3.Cross(Vector3.up, toPlayer) * _strafeSign;
-        float radial = Mathf.Clamp(dist - kiteDistance, -1f, 1f); // >0 troppo lontano (avvicina), <0 troppo vicino (allontana)
+        float radial = Mathf.Clamp(dist - kiteDistance, -1f, 1f); // >0 too far (move closer), <0 too close (move away)
         Vector3 dir = (strafe + toPlayer * radial).normalized;
 
         MoveAt(dir, kiteSpeed);
@@ -346,7 +346,7 @@ public class BossDuelAI : MonoBehaviour
                 _flipTimer = kiteFlipInterval;
                 break;
             case State.SeekHealth:
-                _stateTimer = repositionTimeout; // safety anti-stallo
+                _stateTimer = repositionTimeout; // anti-stall safety
                 break;
         }
     }
@@ -357,9 +357,9 @@ public class BossDuelAI : MonoBehaviour
         Vector3 self = transform.position;
         Vector3 p = self;
 
-        // Campiona un punto sul cerchio attorno al Player che disti almeno
-        // repositionMinDistance dalla posizione attuale del boss (così si muove
-        // davvero, niente arrivo istantaneo).
+        // Sample a point on the circle around the Player that is at least
+        // repositionMinDistance from the boss's current position (so it actually moves,
+        // no instant arrival).
         for (int attempt = 0; attempt < 6; attempt++)
         {
             float angle = Random.value * Mathf.PI * 2f;
@@ -368,7 +368,7 @@ public class BossDuelAI : MonoBehaviour
             p.y = self.y;
             if (Planar(p - self).magnitude >= repositionMinDistance) return p;
         }
-        return p; // fallback: l'ultimo campionato
+        return p; // fallback: the last sampled
     }
 
     // ---- Combo ------------------------------------------------------------
@@ -422,14 +422,15 @@ public class BossDuelAI : MonoBehaviour
 
         Vector3 to = Planar(player.position - transform.position);
         if (to.magnitude > reactiveBlockRange) return;
-        if (Vector3.Angle(transform.forward, to) > 90f) return; // il Player deve essere davanti
+        if (Vector3.Angle(transform.forward, to) > 90f) return; // the Player must be in front
 
         if (Random.value < reactiveBlockChance)
             _reactiveBlockUntil = Time.time + reactiveBlockTime;
     }
 
-    // ---- Bersaglio (fuzzy in Fase 2) -------------------------------------
+    // ---- Target (fuzzy in Phase 2) ---------------------------------------
 
+    /// <summary>Resolves the current target: the Player, or (Moon phase, via fuzzy + hysteresis) a carrying Jammo to intercept.</summary>
     private Transform ResolveTarget()
     {
         if (_moonPhase && jammo != null && !jammo.IsDead && jammo.IsCarrying)
@@ -440,14 +441,14 @@ public class BossDuelAI : MonoBehaviour
             if (_decisionTimer <= 0f)
             {
                 _decisionTimer = decisionInterval;
-                // Il fuzzy ATTIVA l'intercetto; a spegnerlo ci pensa l'isteresi sotto
-                // (niente flip-flop al bordo soglia ogni 0.2 s).
+                // The fuzzy ENABLES the intercept; the hysteresis below turns it off
+                // (no flip-flop at the threshold edge every 0.2 s).
                 if (!_interceptJammo && _brain.Intercept(jammoDist, true) >= interceptThreshold)
                     _interceptJammo = true;
             }
 
-            // Isteresi: una volta agganciato, insegue Jammo finché è carico e non
-            // troppo lontano. Se si allontana oltre la soglia, molla.
+            // Hysteresis: once locked on, it chases Jammo while he's carrying and not
+            // too far. If he gets beyond the threshold, it drops the chase.
             if (_interceptJammo && jammoDist <= interceptGiveUpDistance)
                 return jammo.transform;
         }
@@ -456,11 +457,9 @@ public class BossDuelAI : MonoBehaviour
         return player;
     }
 
-    // ---- Recupero vita (decisione fuzzy gated su HP) ---------------------
+    // ---- Health recovery (fuzzy decision gated on HP) --------------------
 
-    // Decide se staccarsi per andare a curarsi: solo se ferito e con un pickup
-    // "pronto" (vivo da almeno pickupReactionDelay) abbastanza vicino. Priorità
-    // massima: una volta in SeekHealth ci resta (isteresi) finché il pickup esiste.
+    /// <summary>Decides whether to break off to heal: only if wounded and with a "ready" pickup (alive at least pickupReactionDelay) nearby. Once in SeekHealth it stays (hysteresis) while the pickup exists.</summary>
     private void MaybeDecideSeekHealth()
     {
         if (_state == State.SeekHealth) return;
@@ -484,7 +483,7 @@ public class BossDuelAI : MonoBehaviour
     {
         ApplyGuard(false);
 
-        // Pickup raccolto/scaduto (disattivato dal pool) → torna a combattere.
+        // Pickup collected/expired (deactivated by the pool) → back to fighting.
         if (_healthTarget == null || !_healthTarget.gameObject.activeInHierarchy)
         {
             _healthTarget = null;
@@ -498,12 +497,12 @@ public class BossDuelAI : MonoBehaviour
         FaceDirection(dir);
         MoveAt(dir, seekHealthSpeed);
 
-        // La cura avviene da sé camminando sul pickup (trigger). Safety anti-stallo:
+        // Healing happens on its own by walking over the pickup (trigger). Anti-stall safety:
         _stateTimer -= Time.deltaTime;
         if (_stateTimer <= 0f) { _healthTarget = null; EnterState(State.Aggro); }
     }
 
-    // ---- Locomozione / animazione ----------------------------------------
+    // ---- Locomotion / animation ------------------------------------------
 
     private static Vector3 Planar(Vector3 v) { v.y = 0f; return v; }
 
@@ -514,8 +513,8 @@ public class BossDuelAI : MonoBehaviour
         transform.rotation = Quaternion.Slerp(transform.rotation, lookRot, turnSpeed * Time.deltaTime);
     }
 
-    // Muove a 'speed' e alimenta l'Animator con la velocità reale (walk/run senza
-    // slittamento) + MotionSpeed=1.
+    // Moves at 'speed' and feeds the Animator the real velocity (walk/run without sliding)
+    // + MotionSpeed=1.
     private void MoveAt(Vector3 dir, float speed)
     {
         float s = speed * SpeedMul;
@@ -540,7 +539,7 @@ public class BossDuelAI : MonoBehaviour
         }
     }
 
-    // Alza/abbassa la guardia: scudo (blocco frontale) + bool Animator. Idempotente.
+    // Raises/lowers the guard: shield (frontal block) + Animator bool. Idempotent.
     private void ApplyGuard(bool on)
     {
         if (on == _guardApplied) return;
@@ -558,8 +557,8 @@ public class BossDuelAI : MonoBehaviour
         SetAnimTrigger(DeadHash);
     }
 
-    // La skin del boss può cambiare a runtime (EnemySkinMirror): l'Animator
-    // attivo cambia. Lo ri-prendiamo solo quando è "stantio".
+    // The boss skin can change at runtime (EnemySkinMirror): the active Animator changes.
+    // We re-fetch it only when it's "stale".
     private void RefreshAnimatorIfStale()
     {
         if (_animator != null && _animator.gameObject.activeInHierarchy) return;

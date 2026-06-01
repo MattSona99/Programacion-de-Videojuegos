@@ -1,17 +1,22 @@
 using System.Collections;
 using UnityEngine;
 
+/// <summary>
+/// Drives a "build up" reveal of the Act 1 door by feeding a per-step height into the door
+/// material's _BuildHeight shader property via a MaterialPropertyBlock, tweened smoothly.
+/// Each completed path step raises the door a bit more.
+/// </summary>
 public class DoorBuildController : MonoBehaviour
 {
-    [Header("Riferimenti")]
-    [Tooltip("Renderer del mesh della porta (es. SM_Arc). Se vuoto, viene cercato in GetComponentInChildren.")]
+    [Header("References")]
+    [Tooltip("Renderer of the door mesh (e.g. SM_Arc). If empty, it's found via GetComponentInChildren.")]
     [SerializeField] private Renderer doorRenderer;
 
     [Header("Reveal")]
-    [Tooltip("Durata del tween tra uno step e il successivo.")]
+    [Tooltip("Duration of the tween between one step and the next.")]
     [SerializeField] private float tweenDuration = 0.5f;
 
-    [Tooltip("Margine verticale aggiunto sopra e sotto i bounds del mesh: lo step 0 nasconde anche un pelo sotto, lo step max copre anche un pelo sopra.")]
+    [Tooltip("Vertical margin added above and below the mesh bounds: step 0 hides a touch below, the max step covers a touch above.")]
     [SerializeField] private float verticalPadding = 0.1f;
 
     private static readonly int BuildHeightProp = Shader.PropertyToID("_BuildHeight");
@@ -27,7 +32,7 @@ public class DoorBuildController : MonoBehaviour
         if (doorRenderer == null) doorRenderer = GetComponentInChildren<Renderer>();
         if (doorRenderer == null)
         {
-            Debug.LogError($"[DoorBuildController] {name}: nessun Renderer trovato. Componente disabilitato.", this);
+            Debug.LogError($"[DoorBuildController] {name}: no Renderer found. Component disabled.", this);
             enabled = false;
             return;
         }
@@ -41,6 +46,7 @@ public class DoorBuildController : MonoBehaviour
         ApplyHeight();
     }
 
+    /// <summary>Tweens the door build height to the fraction <paramref name="step"/>/<paramref name="totalSteps"/>.</summary>
     public void SetProgressStep(int step, int totalSteps)
     {
         if (totalSteps <= 0) return;

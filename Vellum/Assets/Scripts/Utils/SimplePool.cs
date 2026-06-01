@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Pool riusabile di istanze di un prefab. Niente Destroy: gli oggetti rilasciati
-// vengono disattivati e riusati (convenzione CLAUDE.md per i nemici).
+/// <summary>
+/// Reusable pool of prefab instances. No Destroy: released objects are deactivated
+/// and reused (per the CLAUDE.md convention for enemies).
+/// </summary>
 public class SimplePool
 {
     private readonly GameObject _prefab;
@@ -15,6 +17,7 @@ public class SimplePool
         _parent = parent;
     }
 
+    /// <summary>Returns a pooled instance at the given pose (reusing a free one, or instantiating).</summary>
     public GameObject Get(Vector3 position, Quaternion rotation)
     {
         GameObject go = _free.Count > 0 ? _free.Dequeue() : Object.Instantiate(_prefab, _parent);
@@ -23,6 +26,7 @@ public class SimplePool
         return go;
     }
 
+    /// <summary>Deactivates the instance and returns it to the pool for reuse.</summary>
     public void Release(GameObject go)
     {
         if (go == null) return;

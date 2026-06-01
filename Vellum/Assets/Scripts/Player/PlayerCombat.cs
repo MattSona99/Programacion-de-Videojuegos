@@ -2,22 +2,28 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using StarterAssets; 
 
+/// <summary>
+/// Drives the Player's melee combat: a light-hit combo on a masked UpperBody Animator layer
+/// that escalates into a full-body finisher, plus a hold-to-defend shield state. Attack and
+/// defense are mutually exclusive; movement is locked during committal actions. Reads the new
+/// Input System mouse and re-binds to the active mesh's Animator on skin switches.
+/// </summary>
 public class PlayerCombat : MonoBehaviour
 {
     private static readonly int AttackHash = Animator.StringToHash("Attack");
     private static readonly int FinisherHash = Animator.StringToHash("Finisher");
     private static readonly int IsDefendingHash = Animator.StringToHash("IsDefending");
 
-    [Tooltip("Se true, il Player può muoversi durante attacco/difesa (richiede un layer Animator upper-body con Avatar Mask, altrimenti i piedi scivolano).")]
+    [Tooltip("If true, the Player can move during attack/defense (requires an upper-body Animator layer with an Avatar Mask, otherwise the feet slide).")]
     [SerializeField] private bool moveWhileActing = false;
 
-    [Tooltip("Nome del layer Animator mascherato dei colpi leggeri. Il finisher lo porta a peso 0 perché è una clip full-body sul Base Layer.")]
+    [Tooltip("Name of the masked Animator layer for light hits. The finisher drives it to weight 0 because it is a full-body clip on the Base Layer.")]
     [SerializeField] private string upperBodyLayerName = "UpperBody";
 
-    [Tooltip("Colpi mascherati prima del finisher: dopo questo numero di colpi, il click successivo lancia il finisher full-body.")]
+    [Tooltip("Masked hits before the finisher: after this many hits, the next click launches the full-body finisher.")]
     [SerializeField] private int comboHitsBeforeFinisher = 3;
 
-    [Tooltip("Velocità (peso/sec) con cui il layer UpperBody torna a 0 a riposo. Il peso sale a 1 istantaneamente all'inizio di un'azione.")]
+    [Tooltip("Speed (weight/sec) at which the UpperBody layer returns to 0 at rest. The weight snaps to 1 instantly at the start of an action.")]
     [SerializeField] private float upperBodyBlendSpeed = 14f;
 
     private Animator _animator;
@@ -41,11 +47,13 @@ public class PlayerCombat : MonoBehaviour
         _inputs = GetComponent<StarterAssetsInputs>();
         _playerInput = GetComponent<PlayerInput>();
         _meleeAttack = GetComponent<PlayerMeleeAttack>();
-        // NON chiamare RefreshAnimator qui: lo farà PlayerSkinSwitcher.Switch()
+        // Do NOT call RefreshAnimator here: PlayerSkinSwitcher.Switch() will do it
     }
 
-    // Called by PlayerSkinSwitcher after toggling which Geometry_* is active,
-    // so the cached _animator reference points to the active character's Animator.
+    /// <summary>
+    /// Called by PlayerSkinSwitcher after toggling which Geometry_* is active, so the cached
+    /// _animator reference points to the active character's Animator (and the layer index/combo reset).
+    /// </summary>
     public void RefreshAnimator(GameObject activeGeometry = null)
     {
         if (activeGeometry != null)
@@ -57,8 +65,8 @@ public class PlayerCombat : MonoBehaviour
 
         _upperBodyLayerIndex = _animator != null ? _animator.GetLayerIndex(upperBodyLayerName) : -1;
 
-        // Reset al cambio skin: l'Animator nuovo riparte a riposo (peso 0: il Base
-        // Layer guida tutto il corpo finché non parte un'azione).
+        // Reset on skin change: the new Animator starts at rest (weight 0: the Base
+        // Layer drives the whole body until an action starts).
         _comboStep = 0;
         _finisherActive = false;
         if (_animator != null && _upperBodyLayerIndex >= 0)
@@ -74,9 +82,9 @@ public class PlayerCombat : MonoBehaviour
             {
                 bool defendHeld = Mouse.current.rightButton.isPressed;
 
-                // Attack Logic (Left Click) — solo se NON si sta difendendo:
-                // attacco e difesa sono mutuamente esclusivi. Il finisher è
-                // committal: durante la sua esecuzione i click vengono ignorati.
+                // Attack Logic (Left Click) — only if NOT defending:
+                // attack and defense are mutually exclusive. The finisher is
+                // committal: clicks are ignored while it plays.
                 if (!defendHeld && Mouse.current.leftButton.wasPressedThisFrame
                     && _animator != null && !_finisherActive)
                 {
@@ -92,7 +100,7 @@ public class PlayerCombat : MonoBehaviour
                     {
                         _animator.SetTrigger(AttackHash);
                         _comboStep++;
-                        // Snap del peso: il 1° frame del colpo non parte invisibile.
+                        // Snap the weight: the hit's first frame doesn't start invisible.
                         if (_upperBodyLayerIndex >= 0)
                             _animator.SetLayerWeight(_upperBodyLayerIndex, 1f);
                     }
@@ -104,8 +112,8 @@ public class PlayerCombat : MonoBehaviour
                 if (_animator != null && _animParams.Has(IsDefendingHash))
                     _animator.SetBool(IsDefendingHash, _isDefending);
 
-                // Alzando lo scudo annulla il colpo in corso e il trigger in coda,
-                // così al rilascio della difesa non parte un attacco "fantasma".
+                // Raising the shield cancels the in-progress hit and the queued trigger,
+                // so releasing defense doesn't fire a "phantom" attack.
                 if (_isDefending)
                 {
                     if (_meleeAttack != null) _meleeAttack.CancelSwing();
@@ -123,10 +131,10 @@ public class PlayerCombat : MonoBehaviour
                 _animator.SetBool(IsDefendingHash, false);
         }
 
-        // Peso dinamico del layer UpperBody + reset combo. A riposo il peso va a 0
-        // (il Base Layer guida tutto il corpo: niente posa "congelata" sullo stato
-        // None vuoto a Write Defaults OFF); sale a 1 mentre si attacca/difende; 0
-        // durante il finisher (full-body sul Base Layer).
+        // Dynamic UpperBody layer weight + combo reset. At rest the weight goes to 0
+        // (the Base Layer drives the whole body: no pose "frozen" on the empty None state
+        // with Write Defaults OFF); rises to 1 while attacking/defending; 0 during the
+        // finisher (full-body on the Base Layer).
         if (_upperBodyLayerIndex >= 0 && _animator != null)
         {
             float current = _animator.GetLayerWeight(_upperBodyLayerIndex);
@@ -141,25 +149,24 @@ public class PlayerCombat : MonoBehaviour
                 bool inTransition = _animator.IsInTransition(_upperBodyLayerIndex);
                 bool acting = upperAttacking || upperState.IsTag("Defend") || inTransition;
 
-                // Salita immediata (azione reattiva), discesa morbida (ritorno fluido a idle).
+                // Instant rise (reactive action), smooth fall (fluid return to idle).
                 float target = acting ? 1f : 0f;
                 float next = target > current
                     ? target
                     : Mathf.MoveTowards(current, target, upperBodyBlendSpeed * Time.deltaTime);
                 _animator.SetLayerWeight(_upperBodyLayerIndex, next);
 
-                // Combo azzerata quando la catena mascherata è tornata a riposo.
+                // Combo reset once the masked chain has returned to rest.
                 if (!upperAttacking && !inTransition)
                     _comboStep = 0;
             }
         }
 
         // 2. ROOT MOTION & MOVEMENT OVERRIDE HANDLING
-        // Il finisher è full-body (gambe + root fanno la piroetta): blocca SEMPRE
-        // il movimento, anche con moveWhileActing attivo. Con moveWhileActing OFF
-        // si blocca invece su qualsiasi stato taggato Attack/Defend del Base Layer
-        // (serve un layer upper-body mascherato, gambe in locomozione, busto in
-        // azione, altrimenti i piedi scivolano).
+        // The finisher is full-body (legs + root do the spin): it ALWAYS locks movement,
+        // even with moveWhileActing enabled. With moveWhileActing OFF, movement is instead
+        // locked on any Attack/Defend-tagged state of the Base Layer (needs a masked
+        // upper-body layer — legs in locomotion, torso acting — otherwise the feet slide).
         if (_animator != null && _inputs != null)
         {
             bool lockMovement = _finisherActive;
@@ -191,9 +198,11 @@ public class PlayerCombat : MonoBehaviour
         }
     }
 
-    // Chiamati dalla SMB MeleeFinisherState sullo stato Attack04 del Base Layer
-    // (e dal click che lancia il finisher, per azzerare subito il peso ed evitare
-    // un frame di doppia posa). Idempotenti.
+    /// <summary>
+    /// Called by the MeleeFinisherState SMB on the Base Layer's Attack04 state (and by the
+    /// click that launches the finisher, to zero the weight immediately and avoid a
+    /// double-pose frame). Idempotent.
+    /// </summary>
     public void OnFinisherStart()
     {
         _finisherActive = true;
@@ -201,10 +210,11 @@ public class PlayerCombat : MonoBehaviour
             _animator.SetLayerWeight(_upperBodyLayerIndex, 0f);
     }
 
+    /// <summary>Called by the MeleeFinisherState SMB on finisher exit. Clears the finisher flag and combo.</summary>
     public void OnFinisherEnd()
     {
-        // Il peso lo riporta a riposo (0) la gestione per-frame: a fine finisher si
-        // è fermi, quindi non va forzato a 1.
+        // The per-frame logic returns the weight to rest (0): the finisher ends at a
+        // standstill, so it must not be forced to 1.
         _finisherActive = false;
         _comboStep = 0;
     }

@@ -3,31 +3,33 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Barra verticale di completamento della statua di Jammo (Act_02). Si aggancia
-// allo `StatueRig.onPartRevealed` dall'Inspector e legge il completamento
-// normalizzato dal rig. Animazione lerp con smoothstep, come PlayerHUD.
+/// <summary>
+/// Vertical completion bar for Jammo's statue (Act_02). Hooks `StatueRig.onPartRevealed` from the
+/// Inspector and reads the normalized completion from the rig. Lerp animation with smoothstep,
+/// like PlayerHUD.
+/// </summary>
 public class StatueProgressBar : MonoBehaviour
 {
-    [Header("Sorgente")]
-    [Tooltip("Statua di cui mostrare il completamento.")]
+    [Header("Source")]
+    [Tooltip("Statue whose completion to show.")]
     [SerializeField] private StatueRig statueRig;
 
-    [Header("Visuale")]
-    [Tooltip("Image type=Filled, fillMethod=Vertical, fillOrigin=Bottom: fillAmount segue il completamento normalizzato.")]
+    [Header("Visuals")]
+    [Tooltip("Image type=Filled, fillMethod=Vertical, fillOrigin=Bottom: fillAmount follows the normalized completion.")]
     [SerializeField] private Image fillImage;
-    [Tooltip("Gradient colore del liquido in funzione del completamento (es. blu freddo a 0, dorato a 1).")]
+    [Tooltip("Color gradient of the liquid as a function of completion (e.g. cold blue at 0, golden at 1).")]
     [SerializeField] private Gradient fillGradient;
-    [Tooltip("Ellisse 'cap' del livello del liquido (opzionale). Va figlio dello stesso parent del fill, anchor X stretch + Y bottom, pivot (0.5, 0.5). Si sposta dinamicamente per dare al taglio la forma curva del cilindro.")]
+    [Tooltip("Liquid-level 'cap' ellipse (optional). Make it a child of the fill's parent, anchor X stretch + Y bottom, pivot (0.5, 0.5). Moves dynamically to give the cut the cylinder's curved shape.")]
     [SerializeField] private RectTransform meniscusRect;
 
-    [Header("Etichetta (opzionale)")]
-    [Tooltip("TMP_Text opzionale: numero di pezzi inseriti / totale, o percentuale.")]
+    [Header("Label (optional)")]
+    [Tooltip("Optional TMP_Text: number of inserted pieces / total, or percentage.")]
     [SerializeField] private TMP_Text valueLabel;
     [Tooltip("True → '75%'. False → 'X / Y'.")]
     [SerializeField] private bool showPercentage = false;
 
-    [Header("Animazione")]
-    [Tooltip("Durata della transizione fluida tra valore precedente e nuovo. 0 = istantaneo.")]
+    [Header("Animation")]
+    [Tooltip("Duration of the smooth transition between the previous and new value. 0 = instant.")]
     [SerializeField] private float smoothDuration = 0.4f;
 
     private Coroutine _smoothRoutine;
@@ -37,9 +39,9 @@ public class StatueProgressBar : MonoBehaviour
     {
         if (meniscusRect != null)
         {
-            // Forziamo anchor X stretch + Y bottom, pivot center: il calcolo
-            // di Apply assume questa configurazione (anchoredPosition.y = 0
-            // significa "fondo del cilindro" e cresce verso l'alto).
+            // Force anchor X stretch + Y bottom, pivot center: Apply's calculation
+            // assumes this configuration (anchoredPosition.y = 0 means "bottom of the
+            // cylinder" and grows upward).
             meniscusRect.anchorMin = new Vector2(0f, 0f);
             meniscusRect.anchorMax = new Vector2(1f, 0f);
             meniscusRect.pivot = new Vector2(0.5f, 0.5f);
@@ -56,7 +58,7 @@ public class StatueProgressBar : MonoBehaviour
         }
     }
 
-    // Wirare da Inspector: StatueRig.onPartRevealed → StatueProgressBar.UpdateBar
+    /// <summary>Wire from Inspector: StatueRig.onPartRevealed → StatueProgressBar.UpdateBar. Smoothly animates the bar to the new completion.</summary>
     public void UpdateBar()
     {
         if (statueRig == null) return;
@@ -100,10 +102,9 @@ public class StatueProgressBar : MonoBehaviour
 
             if (meniscusRect != null)
             {
-                // Ellisse centrata sul livello del liquido (metà sotto, metà
-                // sopra il taglio): il taglio retto del fillAmount diventa
-                // visivamente una superficie curva. Si nasconde quando il
-                // livello tocca il fondo o il top.
+                // Ellipse centered on the liquid level (half below, half above the
+                // cut): the straight fillAmount cut visually becomes a curved
+                // surface. Hidden when the level reaches the bottom or the top.
                 float h = fillImage.rectTransform.rect.height;
                 Vector2 pos = meniscusRect.anchoredPosition;
                 pos.y = n * h;

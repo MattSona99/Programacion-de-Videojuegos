@@ -3,50 +3,52 @@ using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// Regia di Act_02 (#6 del piano arena). Sequenza lineare:
-//   1) prologo: camera in alto sulla statua + dialogo introduttivo (narratore al passato).
-//   2) la camera torna sul player, WaveManager.StartNextWave() → le 4 wave si concatenano
-//      da sole (autoAdvance del WaveManager) mentre Jammo raccoglie i pezzi (#5).
-//   3) epilogo: alla statua completa, camera torna sull'overview, dialogo finale,
-//      poi SceneManager.LoadScene("Act_03").
-// L'epilogo è triggerato da StatueAssemblyDirector.onAssemblyFinished (UnityEvent,
-// wired in Inspector verso OnAssemblyFinished()).
+/// <summary>
+/// Act_02 director. Linear sequence:
+///   1) prologue: camera up on the statue + intro dialogue (past-tense narrator).
+///   2) camera returns to the player, WaveManager.StartNextWave() → the waves chain
+///      themselves (WaveManager autoAdvance) while Jammo collects the pieces.
+///   3) epilogue: on statue completion, camera returns to the overview, final dialogue,
+///      then SceneManager.LoadScene("Act_03").
+/// The epilogue is triggered by StatueAssemblyDirector.onAssemblyFinished (UnityEvent,
+/// wired in the Inspector to OnAssemblyFinished()).
+/// </summary>
 public class Act02Director : MonoBehaviour
 {
     [Header("Refs")]
     [SerializeField] private WaveManager waveManager;
-    // CinemachineVirtualCameraBase è la classe base condivisa da Cinemachine 2
-    // (CinemachineVirtualCamera) e Cinemachine 3 (CinemachineCamera). Usarla qui
-    // permette di trascinare nel slot la PlayerFollowCamera di StarterAssets,
-    // che potrebbe essere ancora la versione legacy del prefab.
+    // CinemachineVirtualCameraBase is the base class shared by Cinemachine 2
+    // (CinemachineVirtualCamera) and Cinemachine 3 (CinemachineCamera). Using it here
+    // lets us drag StarterAssets' PlayerFollowCamera into the slot, which may still be
+    // the legacy version of the prefab.
     [SerializeField] private CinemachineVirtualCameraBase prologueCamera;
     [SerializeField] private CinemachineVirtualCameraBase gameplayCamera;
 
-    [Header("Dialoghi")]
+    [Header("Dialogues")]
     [SerializeField] private DialogueAsset prologueDialogue;
     [SerializeField] private DialogueAsset epilogueDialogue;
 
-    [Header("Tempi")]
-    [Tooltip("Quanto resta inquadrato il player all'avvio della scena prima che la camera inizi a salire sulla statua.")]
+    [Header("Timing")]
+    [Tooltip("How long the player stays framed at scene start before the camera begins rising onto the statue.")]
     [SerializeField] private float initialPauseOnPlayer = 1.0f;
-    [Tooltip("Durata del blend lento dalla camera del player a quella della statua (e ritorno).")]
+    [Tooltip("Duration of the slow blend from the player camera to the statue camera (and back).")]
     [SerializeField] private float prologueBlendDuration = 2.0f;
-    [Tooltip("Pausa tra la fine del dialogo prologo e l'inizio della prima wave.")]
+    [Tooltip("Pause between the end of the prologue dialogue and the start of the first wave.")]
     [SerializeField] private float pauseBeforeWavesStart = 0.5f;
-    [Tooltip("Pausa tra la fine del dialogo epilogo e il caricamento della scena successiva.")]
+    [Tooltip("Pause between the end of the epilogue dialogue and loading the next scene.")]
     [SerializeField] private float pauseBeforeNextScene = 1.5f;
 
-    [Header("Scena successiva")]
+    [Header("Next scene")]
     [SerializeField] private string nextSceneName = "Act_03";
 
-    [Header("Priorità Cinemachine 3")]
+    [Header("Cinemachine 3 priorities")]
     [SerializeField] private int activePriority = 20;
     [SerializeField] private int idlePriority = 5;
 
     [Header("HUD")]
-    [Tooltip("Elementi UI da rivelare alla fine del prologo (slide+fade) e nascondere all'inizio dell'epilogo. Tipicamente: HUDPlayer e StatueProgressBar.")]
+    [Tooltip("UI elements to reveal at the end of the prologue (slide+fade) and hide at the start of the epilogue. Typically: HUDPlayer and StatueProgressBar.")]
     [SerializeField] private HudReveal[] hudReveals;
-    [Tooltip("Attesa post-Hide HUD prima del blend camera epilogo, così l'animazione di uscita ha tempo di completarsi.")]
+    [Tooltip("Wait after hiding the HUD before the epilogue camera blend, so the exit animation has time to finish.")]
     [SerializeField] private float hudHideWait = 0.6f;
 
     private CinemachineBrain _brain;
@@ -62,7 +64,7 @@ public class Act02Director : MonoBehaviour
         StartCoroutine(RunPrologue());
     }
 
-    // Da agganciare a StatueAssemblyDirector.onAssemblyFinished dall'Inspector.
+    /// <summary>Wire this to StatueAssemblyDirector.onAssemblyFinished in the Inspector. Starts the epilogue once.</summary>
     public void OnAssemblyFinished()
     {
         if (_epilogueQueued) return;
@@ -70,18 +72,19 @@ public class Act02Director : MonoBehaviour
         StartCoroutine(RunEpilogue());
     }
 
+    /// <summary>Prologue: frame the player, slow-blend up to the statue, play the intro dialogue, blend back, reveal the HUD, then start the waves.</summary>
     private IEnumerator RunPrologue()
     {
-        // Frame 0: camera SUL PLAYER (PlayerFollowCamera vince con priority più alta),
-        // player bloccato manualmente: il blend iniziale verso la statua deve avvenire
-        // mentre il player è fermo, e PlayDialogue partirà solo dopo.
+        // Frame 0: camera ON THE PLAYER (PlayerFollowCamera wins with higher priority),
+        // player locked manually: the initial blend to the statue must happen while the
+        // player is still, and PlayDialogue starts only afterwards.
         SetActiveCamera(gameplayCamera);
         if (DialogueManager.Instance != null) DialogueManager.Instance.LockPlayer();
 
         if (initialPauseOnPlayer > 0f) yield return new WaitForSeconds(initialPauseOnPlayer);
 
-        // Blend lento camera -> statua. Sovrascriviamo il DefaultBlend del Brain per
-        // la durata richiesta, poi lo ripristiniamo (pattern come MainMenuManager).
+        // Slow camera blend -> statue. Override the Brain's DefaultBlend for the
+        // requested duration, then restore it (same pattern as MainMenuManager).
         CinemachineBlendDefinition prevBlend = default;
         bool blendOverridden = false;
         if (_brain != null && prologueBlendDuration > 0f)
@@ -104,25 +107,26 @@ public class Act02Director : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("[Act02Director] prologueDialogue o DialogueManager.Instance mancante: salto il prologo.", this);
+            Debug.LogWarning("[Act02Director] prologueDialogue or DialogueManager.Instance missing: skipping the prologue.", this);
         }
 
         SetActiveCamera(gameplayCamera);
         yield return WaitForBlend();
 
-        // Mostra l'HUD prima che parta il combat: l'utente vede la sua
-        // healthbar e la statua salire mentre i nemici cominciano ad arrivare.
+        // Show the HUD before combat starts: the user sees their health bar
+        // and the statue rising as the enemies begin to arrive.
         RevealHud();
 
         if (pauseBeforeWavesStart > 0f) yield return new WaitForSeconds(pauseBeforeWavesStart);
 
         if (waveManager != null) waveManager.StartNextWave();
-        else Debug.LogWarning("[Act02Director] waveManager non assegnato: le wave non partiranno.", this);
+        else Debug.LogWarning("[Act02Director] waveManager not assigned: the waves won't start.", this);
     }
 
+    /// <summary>Epilogue: hide the HUD, blend to the overview, play the final dialogue, then load the next scene.</summary>
     private IEnumerator RunEpilogue()
     {
-        // Simmetria: l'HUD scompare prima del blend epilogo, con la stessa animazione al contrario.
+        // Symmetry: the HUD disappears before the epilogue blend, with the same animation reversed.
         HideHud();
         if (hudHideWait > 0f) yield return new WaitForSeconds(hudHideWait);
 
@@ -137,13 +141,13 @@ public class Act02Director : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("[Act02Director] epilogueDialogue o DialogueManager.Instance mancante: carico comunque la scena successiva.", this);
+            Debug.LogWarning("[Act02Director] epilogueDialogue or DialogueManager.Instance missing: loading the next scene anyway.", this);
         }
 
         if (pauseBeforeNextScene > 0f) yield return new WaitForSeconds(pauseBeforeNextScene);
 
-        // Defensive: se entriamo qui da uno stato di pausa (improbabile, il pause menu
-        // ha guard su DialogueManager.IsPlaying), ripristiniamo timeScale e cursore.
+        // Defensive: if we get here from a paused state (unlikely, the pause menu
+        // guards on DialogueManager.IsPlaying), restore timeScale and cursor.
         Time.timeScale = 1f;
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;

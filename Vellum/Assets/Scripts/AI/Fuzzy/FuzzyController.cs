@@ -3,14 +3,16 @@ using UnityEngine;
 
 namespace Vellum.AI.Fuzzy
 {
-    // Motore di inferenza fuzzy Mamdani:
-    //   1) fuzzifica gli input e calcola la forza di ogni regola (AND = min);
-    //   2) per ogni variabile di output, aggrega i set conseguenti tagliati alla
-    //      forza della regola (aggregazione = max);
-    //   3) defuzzifica col centroide campionato sul dominio dell'output.
-    // Costruito una volta (vedi Builder), poi Evaluate() gira senza allocazioni:
-    // input/output passati come float[] allineati all'ordine di dichiarazione, e
-    // il buffer delle forze è preallocato.
+    /// <summary>
+    /// Mamdani fuzzy inference engine:
+    ///   1) fuzzifies the inputs and computes each rule's strength (AND = min);
+    ///   2) for every output variable, aggregates the consequent sets clipped to the
+    ///      rule strength (aggregation = max);
+    ///   3) defuzzifies with a centroid sampled over the output domain.
+    /// Built once (see <see cref="Builder"/>), then <see cref="Evaluate"/> runs
+    /// allocation-free: inputs/outputs are passed as float[] aligned to declaration
+    /// order, and the rule-strength buffer is preallocated.
+    /// </summary>
     public sealed class FuzzyController
     {
         private readonly FuzzyVariable[] _inputs;
@@ -43,11 +45,14 @@ namespace Vellum.AI.Fuzzy
             return -1;
         }
 
-        // crispInputs allineato all'ordine degli input; crispOutputs riceve i
-        // valori defuzzificati allineato all'ordine degli output.
+        /// <summary>
+        /// Runs one inference pass. <paramref name="crispInputs"/> is aligned to the input
+        /// order; <paramref name="crispOutputs"/> receives the defuzzified values aligned
+        /// to the output order. Allocation-free.
+        /// </summary>
         public void Evaluate(float[] crispInputs, float[] crispOutputs)
         {
-            // 1) forza di ogni regola = min dei gradi di appartenenza degli antecedenti.
+            // 1) each rule's strength = min of the antecedents' membership degrees.
             for (int r = 0; r < _rules.Length; r++)
             {
                 FuzzyRule rule = _rules[r];
@@ -61,7 +66,7 @@ namespace Vellum.AI.Fuzzy
                 _strengths[r] = strength;
             }
 
-            // 2)+3) per ogni output, centroide dell'aggregato (max dei set tagliati).
+            // 2)+3) for each output, centroid of the aggregate (max of the clipped sets).
             for (int o = 0; o < _outputs.Length; o++)
             {
                 FuzzyVariable outVar = _outputs[o];
@@ -87,8 +92,9 @@ namespace Vellum.AI.Fuzzy
             }
         }
 
-        // ---- Builder leggibile (etichette risolte in indici a build-time) ----
+        // ---- Readable builder (labels resolved into indices at build-time) ----
 
+        /// <summary>Fluent builder for a <see cref="FuzzyController"/>: declare inputs/outputs and rules, then Build().</summary>
         public sealed class Builder
         {
             private readonly List<FuzzyVariable> _inputs = new List<FuzzyVariable>();
@@ -120,12 +126,14 @@ namespace Vellum.AI.Fuzzy
             private static int VarIndex(FuzzyVariable[] vars, string name)
             {
                 for (int i = 0; i < vars.Length; i++) if (vars[i].Name == name) return i;
-                Debug.LogError($"[FuzzyController] Variabile '{name}' non dichiarata.");
+                Debug.LogError($"[FuzzyController] Variable '{name}' is not declared.");
                 return 0;
             }
 
-            // Bozza fluente di una regola: If/And accumulano antecedenti, Then fissa
-            // il conseguente. Risolta in FuzzyRule (indici) da Resolve().
+            /// <summary>
+            /// Fluent draft of a rule: If/And accumulate antecedents, Then fixes the
+            /// consequent. Resolved into a <see cref="FuzzyRule"/> (indices) by Resolve().
+            /// </summary>
             public sealed class RuleDraft
             {
                 private readonly Builder _owner;
@@ -145,7 +153,7 @@ namespace Vellum.AI.Fuzzy
 
                 public RuleDraft And(string variable, string set) => If(variable, set);
 
-                // Termina la regola e torna al Builder per concatenare la prossima.
+                // Ends the rule and returns to the Builder to chain the next one.
                 public Builder Then(string variable, string set)
                 {
                     _outVarName = variable;
@@ -162,12 +170,12 @@ namespace Vellum.AI.Fuzzy
                         antVar[i] = VarIndex(inputs, _antVarNames[i]);
                         antSet[i] = inputs[antVar[i]].IndexOf(_antSetLabels[i]);
                         if (antSet[i] < 0)
-                            Debug.LogError($"[FuzzyController] Set '{_antSetLabels[i]}' assente in input '{_antVarNames[i]}'.");
+                            Debug.LogError($"[FuzzyController] Set '{_antSetLabels[i]}' missing in input '{_antVarNames[i]}'.");
                     }
                     int outVar = VarIndex(outputs, _outVarName);
                     int outSet = outputs[outVar].IndexOf(_outSetLabel);
                     if (outSet < 0)
-                        Debug.LogError($"[FuzzyController] Set '{_outSetLabel}' assente in output '{_outVarName}'.");
+                        Debug.LogError($"[FuzzyController] Set '{_outSetLabel}' missing in output '{_outVarName}'.");
                     return new FuzzyRule(antVar, antSet, outVar, Mathf.Max(0, outSet));
                 }
             }

@@ -2,30 +2,37 @@ using UnityEngine;
 using System.Collections;
 using Unity.Cinemachine;
 
+/// <summary>
+/// Cinematic that drops the Player (and optionally the environment) into the tomb. Follows the
+/// project's cinematic recipe: lock player input → raise a Cinemachine top-down camera → run a
+/// timed coroutine driving a global dissolve shader → restore state. Triggered via UnityEvent.
+/// </summary>
 public class CinematicFallManager : MonoBehaviour
 {
-    [Header("Telecamera Cinematica")]
+    [Header("Cinematic camera")]
     public CinemachineCamera topDownCamera;
 
-    [Header("Riferimenti Player ed Environment")]
+    [Header("Player and environment references")]
     public GameObject player;
     public Transform environmentToFall;
 
-    [Header("Impostazioni Caduta")]
+    [Header("Fall settings")]
     public float targetYPosition = -200f;
     public float fallDuration = 5f;
 
-    [Header("Oggetti da far SVANIRe subito")]
+    [Header("Objects to vanish immediately")]
     public GameObject[] objectsToVanish;
 
-    [Header("Effetti Particellari")]
-    [Tooltip("Trascina qui i Particle Systems (Libro, Tomba, ecc.) per spegnerli durante la caduta")]
+    [Header("Particle effects")]
+    [Tooltip("Drag the Particle Systems (Book, Tomb, etc.) here to stop them during the fall")]
     public ParticleSystem[] particlesToStop;
 
     private bool _hasStarted = false;
 
+    /// <summary>True while the fall cinematic is playing.</summary>
     public bool IsPlaying { get; private set; }
 
+    /// <summary>Starts the fall cinematic once (ignored on subsequent calls).</summary>
     public void StartFallSequence()
     {
         if (_hasStarted) return;
@@ -34,25 +41,26 @@ public class CinematicFallManager : MonoBehaviour
         StartCoroutine(FallRoutine());
     }
 
+    /// <summary>Locks input, raises the camera, stops particles, then drives the timed fall + dissolve and restores state.</summary>
     private IEnumerator FallRoutine()
     {
-        // La caduta iniziale spegne tutto, mouse incluso: keepLookActive = false.
+        // The initial fall disables everything, mouse included: keepLookActive = false.
         SetPlayerMovement(false, keepLookActive: false);
         if (topDownCamera != null) topDownCamera.Priority = 20;
 
         yield return new WaitForSeconds(2f);
-        
-        // --- SPEGNIMENTO PARTICELLE ---
+
+        // --- STOP PARTICLES ---
         foreach (ParticleSystem ps in particlesToStop)
         {
-            if (ps != null) 
+            if (ps != null)
             {
-                ps.Stop(); // Smette di crearne di nuove
-                ps.Clear(); // Cancella istantaneamente quelle già visibili
+                ps.Stop(); // Stops creating new ones
+                ps.Clear(); // Instantly clears the ones already visible
             }
         }
 
-        // --- OGGETTI DA FAR SPARIRE (Plane, ecc.) ---
+        // --- OBJECTS TO HIDE (Plane, etc.) ---
         foreach (GameObject obj in objectsToVanish)
         {
             if (obj != null) obj.SetActive(false);
@@ -108,33 +116,33 @@ public class CinematicFallManager : MonoBehaviour
         IsPlaying = false;
     }
 
+    /// <summary>
+    /// Locks/unlocks the Player. <paramref name="keepLookActive"/> = true blocks only movement
+    /// (WASD/left stick) while keeping camera look alive (used by JammoGuideController during
+    /// guided walks); false is a full shutdown (the initial cinematic fall).
+    /// </summary>
     public void SetPlayerMovement(bool canMove, bool keepLookActive = true)
     {
-        // keepLookActive = true: blocchiamo solo il movimento (WASD/gamepad sinistro),
-        // lasciando viva la rotazione di camera (mouse / right stick). Caso usato da
-        // JammoGuideController durante le camminate guidate.
-        // keepLookActive = false: spegnimento completo (caduta cinematica iniziale).
-
         if (player != null)
         {
-            // 1. Azzeriamo il vettore di movimento sui receiver del broadcast (StarterAssetsInputs)
+            // 1. Zero the movement vector on the broadcast receivers (StarterAssetsInputs)
             if (!canMove)
             {
                 player.BroadcastMessage("MoveInput", Vector2.zero, SendMessageOptions.DontRequireReceiver);
                 player.BroadcastMessage("SprintInput", false, SendMessageOptions.DontRequireReceiver);
             }
 
-            // 2. CharacterController: lo spegniamo solo se dobbiamo spostare il player via transform
-            //    (caduta cinematica). In keepLookActive deve restare attivo per gravità e collisioni.
+            // 2. CharacterController: disable it only when we move the player via transform
+            //    (cinematic fall). With keepLookActive it must stay on for gravity and collisions.
             if (!keepLookActive)
             {
                 CharacterController charController = player.GetComponent<CharacterController>();
                 if (charController != null) charController.enabled = canMove;
             }
 
-            // 3. Script del controller. ThirdPersonController e StarterAssetsInputs alimentano sia
-            //    il movimento sia il look della camera: in keepLookActive li lasciamo accesi
-            //    (l'azzeramento del broadcast basta a fermare le gambe del player).
+            // 3. Controller scripts. ThirdPersonController and StarterAssetsInputs feed both
+            //    movement and camera look: with keepLookActive we leave them on (zeroing the
+            //    broadcast is enough to stop the player's legs).
             MonoBehaviour[] allScripts = player.GetComponentsInChildren<MonoBehaviour>();
             foreach (MonoBehaviour script in allScripts)
             {
@@ -150,12 +158,11 @@ public class CinematicFallManager : MonoBehaviour
             }
 
             // 4. Input System:
-            //    - keepLookActive=false → spegniamo TUTTO il PlayerInput (look incluso).
-            //    - keepLookActive=true → disabilitiamo solo le action di movimento
-            //      (Move/Sprint/Jump). Senza questo, se il player sta TENENDO PREMUTO
-            //      W al momento del lock (caso: arrivo al checkpoint mentre cammina),
-            //      l'Input System continua a ri-sparare OnMove e rialimenta il
-            //      vettore subito dopo il nostro BroadcastMessage(zero).
+            //    - keepLookActive=false → disable the WHOLE PlayerInput (look included).
+            //    - keepLookActive=true → disable only the movement actions (Move/Sprint/Jump).
+            //      Without this, if the player is HOLDING W at lock time (e.g. reaching the
+            //      checkpoint while walking), the Input System keeps re-firing OnMove and
+            //      re-feeds the vector right after our BroadcastMessage(zero).
             var playerInput = player.GetComponentInChildren<UnityEngine.InputSystem.PlayerInput>();
             if (playerInput != null)
             {
@@ -184,7 +191,7 @@ public class CinematicFallManager : MonoBehaviour
                 }
             }
 
-            // 5. Animator: forziamo idle nello stesso frame per evitare scivolate sul blend tree.
+            // 5. Animator: force idle in the same frame to avoid sliding on the blend tree.
             if (!canMove)
             {
                 Animator anim = player.GetComponentInChildren<Animator>();
@@ -198,7 +205,7 @@ public class CinematicFallManager : MonoBehaviour
             }
         }
 
-        // 6. Cursore: lo gestiamo solo nello spegnimento totale; in keepLookActive resta com'era.
+        // 6. Cursor: handled only on a full shutdown; with keepLookActive it stays as it was.
         if (!keepLookActive)
         {
             if (canMove)

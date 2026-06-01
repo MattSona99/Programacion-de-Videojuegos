@@ -1,14 +1,17 @@
 using UnityEngine;
 
-// Valutatore Fuzzy (Mamdani semplificato) della qualità estetica di un percorso.
-// Input fuzzificati: turnDensity, edgeProximity, spread.
-// Output: score in [0,1] tramite centroide su [0,1] discretizzato.
-// Le regole sono pensate per premiare percorsi "bilanciati e spaziosi" e penalizzare
-// quelli troppo dritti, troppo a zig-zag o appiccicati ai bordi.
+/// <summary>
+/// Fuzzy evaluator (simplified Mamdani) of a path's aesthetic quality.
+/// Fuzzified inputs: turnDensity, edgeProximity, spread.
+/// Output: a score in [0,1] via a centroid over a discretized [0,1] domain.
+/// The rules reward "balanced and spacious" paths and penalize ones that are too straight,
+/// too zig-zaggy, or stuck against the edges.
+/// </summary>
 public class FuzzyPathEvaluator
 {
     private const int DefuzzSteps = 20;
 
+    /// <summary>Scores the path's aesthetics in [0,1]; higher is better.</summary>
     public float Score(GridPath path, RectInt bounds)
     {
         if (path == null || path.Count < 2) return 0f;
@@ -27,7 +30,7 @@ public class FuzzyPathEvaluator
         float cramped = Triangular(spread, 0f, 0f, 0.5f);
         float spacious = Triangular(spread, 0.4f, 1f, 1f);
 
-        // Rule base. Activation = min(antecedenti). Consequent = etichetta linguistica del set di output.
+        // Rule base. Activation = min(antecedents). Consequent = linguistic label of the output set.
         float r1 = Mathf.Min(balanced, spacious);              // HIGH
         float r2 = straight;                                    // LOW
         float r3 = Mathf.Min(wiggly, near);                     // LOW
@@ -115,8 +118,8 @@ public class FuzzyPathEvaluator
         }
         int bboxArea = (maxX - minX + 1) * (maxY - minY + 1);
         float ratio = bboxArea / (float)path.Cells.Count;
-        // ratio = 1 → perfettamente impacchettato (path "denso"); ratio alto → path "spazioso".
-        // Mappiamo ratio in [0,1] con saturazione a 4 (un quarto delle celle del bbox occupate).
+        // ratio = 1 → perfectly packed (a "dense" path); high ratio → a "spacious" path.
+        // Map ratio into [0,1] saturating at 4 (a quarter of the bbox cells occupied).
         return Mathf.Clamp01((ratio - 1f) / 3f);
     }
 }

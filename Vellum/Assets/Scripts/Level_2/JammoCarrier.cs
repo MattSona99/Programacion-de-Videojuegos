@@ -2,48 +2,48 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
-// Controller del Jammo nell'arena Act_02: cammina verso un punto e trasporta
-// un pezzo che fluttua accanto a lui. Sostituisce JammoGuideController (logica
-// del livello 1) su questo Jammo. Pattern di cammino ripreso da
-// JammoGuideController.FollowPathRoutine (MoveTowards XZ + Slerp + Animator).
-// Vulnerabile: implementa IDamageReaction → se viene colpito MENTRE trasporta
-// un pezzo, segnala il drop (il pezzo va perso). Alla morte (Health.Died) ferma
-// movimento e coroutine; il "beat" di morte + fine livello sono in JammoHealth.
+/// <summary>
+/// Controls Jammo in the Act_02 arena: walks to a point and carries a piece that floats beside
+/// him. Walk pattern reused from JammoGuideController (MoveTowards XZ + Slerp + Animator), with a
+/// NavMeshAgent to avoid obstacles. Vulnerable: implements IDamageReaction → if hit WHILE carrying
+/// a piece, it flags the drop (the piece is lost). On death (Health.Died) it stops movement and
+/// coroutines; the death beat + level end live in JammoHealth.
+/// </summary>
 [RequireComponent(typeof(Health))]
 public class JammoCarrier : MonoBehaviour, IDamageReaction
 {
-    [Header("Cammino")]
-    [Tooltip("Velocità di corsa del NavMeshAgent. Jammo_Anim.controller usa la corsa a Speed≈3.5 m/s: tienila vicino a quel valore così i piedi combaciano col movimento (no slittamento).")]
+    [Header("Walking")]
+    [Tooltip("NavMeshAgent run speed. Jammo_Anim.controller runs at Speed≈3.5 m/s: keep it near that value so the feet match the movement (no sliding).")]
     [SerializeField] private float runSpeed = 3.5f;
     [SerializeField] private float turnSpeed = 10f;
-    [Tooltip("Gradi: sopra questa differenza d'angolo Jammo si gira sul posto (in idle, niente slittamento) prima di partire; sotto la soglia parte diretto, così i tratti brevi non micro-stoppano.")]
+    [Tooltip("Degrees: above this angle difference Jammo turns in place (in idle, no sliding) before moving; below the threshold he goes straight, so short stretches don't micro-stop.")]
     [SerializeField] private float turnInPlaceThreshold = 30f;
     [SerializeField] private float arriveDistance = 0.15f;
     [SerializeField] private Animator jammoAnimator;
 
-    [Header("Animator locomozione")]
-    [Tooltip("Float del blend tree di locomozione di Jammo_Anim.controller (soglie m/s: 0 idle, 1 walk, 3.5 run). Viene alimentato con la velocità reale dell'agent.")]
+    [Header("Locomotion animator")]
+    [Tooltip("Locomotion blend-tree float of Jammo_Anim.controller (m/s thresholds: 0 idle, 1 walk, 3.5 run). Fed with the agent's real velocity.")]
     [SerializeField] private string locomotionSpeedParam = "Speed";
 
-    [Header("Attivazione (alzata)")]
-    [Tooltip("Bool dell'Animator che attiva Jammo (posa in piedi / sblocca la locomozione). In #5 va tenuto su Start; in #6 la regia chiamerà Activate() col timing giusto.")]
+    [Header("Activation (get-up)")]
+    [Tooltip("Animator bool that activates Jammo (standing pose / unlocks locomotion). Keep it on Start by default; a director can call Activate() with the right timing.")]
     [SerializeField] private string animatorActivatedBool = "IsActivated";
     [SerializeField] private bool activateOnStart = true;
 
-    [Header("Trasporto pezzo")]
-    [Tooltip("Punto (figlio di Jammo) sopra cui fluttua il pezzo trasportato.")]
+    [Header("Piece carrying")]
+    [Tooltip("Point (child of Jammo) above which the carried piece floats.")]
     [SerializeField] private Transform carryAnchor;
     [SerializeField] private float bobAmplitude = 0.15f;
     [SerializeField] private float bobFrequency = 2f;
-    [Tooltip("Durata del sollevamento da terra fino sopra la testa.")]
+    [Tooltip("Duration of lifting the piece from the ground up above the head.")]
     [SerializeField] private float liftDuration = 0.5f;
-    [Tooltip("Durata della sparizione del pezzo alla consegna (scale-down a 0).")]
+    [Tooltip("Duration of the piece vanishing on delivery (scale-down to 0).")]
     [SerializeField] private float placeDuration = 0.3f;
 
-    [Header("Posizione di riposo")]
+    [Header("Rest position")]
     [SerializeField] private Transform homePost;
 
-    [Header("Hook #6 (opzionale, non usato in #5)")]
+    [Header("Director hook (optional)")]
     [SerializeField] private CinematicFallManager cinematicManager;
 
     private Coroutine _bob;
@@ -58,12 +58,13 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
 
     public Transform HomePost => homePost;
 
-    // Sta trasportando un pezzo (dalla presa al rilascio/drop).
+    /// <summary>True while carrying a piece (from pickup to release/drop).</summary>
     public bool IsCarrying => _carrying;
-    // Morto: il director smette di pilotarlo e le coroutine escono.
+    /// <summary>Dead: the director stops driving it and the coroutines exit.</summary>
     public bool IsDead { get; private set; }
-    // Colpito mentre trasportava: il director deve far perdere il pezzo.
+    /// <summary>Hit while carrying: the director must make the piece be lost.</summary>
     public bool DropRequested => _dropRequested;
+    /// <summary>Clears the pending drop request.</summary>
     public void ClearDropRequest() => _dropRequested = false;
 
     void Awake()
@@ -89,7 +90,7 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
         if (_health != null) _health.Died -= OnDied;
     }
 
-    // IDamageReaction: ogni colpo subìto. Se sta trasportando un pezzo, lo perde.
+    /// <summary>IDamageReaction: every hit taken. If carrying a piece, it gets lost.</summary>
     public void OnDamaged(DamageInfo info)
     {
         if (_carrying) _dropRequested = true;
@@ -103,8 +104,8 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
         SetLocomotion(0f);
     }
 
-    // Speed = velocità reale in m/s: il blend tree sceglie idle/walk/run
-    // sincronizzato col movimento (niente slittamento).
+    // Speed = real velocity in m/s: the blend tree picks idle/walk/run synced with the
+    // movement (no sliding).
     private void SetLocomotion(float speed)
     {
         if (jammoAnimator != null && _animParams.Has(_speedHash))
@@ -116,10 +117,10 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
         if (activateOnStart) Activate();
     }
 
-    // Mette Jammo nella posa attiva (in piedi). #6 può chiamarlo col timing
-    // della regia invece di Start (con activateOnStart = false).
+    /// <summary>Puts Jammo into the active (standing) pose. A director can call this with its own timing instead of Start.</summary>
     public void Activate() => SetActivated(true);
 
+    /// <summary>Returns Jammo to the inactive pose.</summary>
     public void Deactivate() => SetActivated(false);
 
     private void SetActivated(bool value)
@@ -128,9 +129,7 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
             jammoAnimator.SetBool(_activatedHash, value);
     }
 
-    // Ruota sul posto verso il punto, in idle (niente slittamento), finché non
-    // è grossomodo allineato. Se è già rivolto là (sotto soglia) ritorna subito,
-    // così i tratti brevi non micro-stoppano.
+    /// <summary>Rotates in place toward the point (in idle, no sliding) until roughly aligned; returns immediately if already facing it.</summary>
     private IEnumerator TurnInPlace(Vector3 worldTarget)
     {
         Vector3 flat = worldTarget - transform.position;
@@ -151,36 +150,35 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
         }
     }
 
-    // Cammina fino al punto. Con NavMeshAgent aggira gli ostacoli (piedistallo/
-    // statua carved); senza agent/NavMesh ricade sul vecchio MoveTowards XZ.
+    /// <summary>Walks to the point. With a NavMeshAgent it avoids obstacles (pedestal/carved statue); without agent/NavMesh it falls back to MoveTowards XZ.</summary>
     public IEnumerator WalkTo(Vector3 worldPos)
     {
         if (IsDead) yield break;
 
         if (_agent != null && _agent.isOnNavMesh && _agent.SetDestination(worldPos))
         {
-            // Prima si gira verso il path (fermo, in idle), poi parte: evita il
-            // "cammina mentre ruota" che sembrava innaturale.
+            // First turn toward the path (stationary, in idle), then move: avoids the
+            // "walk while rotating" that looked unnatural.
             _agent.isStopped = true;
             _agent.updateRotation = false;
-            while (_agent.pathPending) yield return null; // steeringTarget valido
+            while (_agent.pathPending) yield return null; // valid steeringTarget
             yield return TurnInPlace(_agent.steeringTarget);
             _agent.updateRotation = true;
             _agent.isStopped = false;
 
-            // attende il calcolo del path, poi l'arrivo. Timer anti-stallo:
-            // se il path è bloccato/parziale e Jammo non avanza, prosegue
-            // comunque (no deadlock della coroutine del director).
+            // wait for the path computation, then for arrival. Anti-stall timer:
+            // if the path is blocked/partial and Jammo isn't advancing, continue
+            // anyway (no deadlock of the director's coroutine).
             float stuck = 0f;
             while (_agent.pathPending ||
                    _agent.remainingDistance > _agent.stoppingDistance)
             {
-                if (IsDead || _dropRequested) break; // morte o pezzo perso: interrompi il cammino
+                if (IsDead || _dropRequested) break; // death or lost piece: abort the walk
                 SetLocomotion(_agent.velocity.magnitude);
                 stuck = _agent.velocity.sqrMagnitude > 0.01f ? 0f : stuck + Time.deltaTime;
                 if (stuck > 2f)
                 {
-                    Debug.LogWarning("[JammoCarrier] Path bloccato/irraggiungibile: proseguo.", this);
+                    Debug.LogWarning("[JammoCarrier] Path blocked/unreachable: continuing.", this);
                     break;
                 }
                 yield return null;
@@ -191,15 +189,15 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
             yield break;
         }
 
-        // Fallback: nessun agent o NavMesh non bakeata.
+        // Fallback: no agent or NavMesh not baked.
         Vector3 target = new Vector3(worldPos.x, transform.position.y, worldPos.z);
 
-        yield return TurnInPlace(target); // gira fermo prima di camminare
+        yield return TurnInPlace(target); // turn in place before walking
         SetLocomotion(runSpeed);
 
         while (Vector3.Distance(transform.position, target) > arriveDistance)
         {
-            if (IsDead || _dropRequested) break; // morte o pezzo perso: interrompi il cammino
+            if (IsDead || _dropRequested) break; // death or lost piece: abort the walk
             Vector3 dir = target - transform.position;
             if (dir.sqrMagnitude > 0.0001f)
             {
@@ -213,13 +211,12 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
         SetLocomotion(0f);
     }
 
-    // Il pezzo si solleva da terra fino sopra la testa di Jammo, poi fluttua
-    // (bob) finché non viene posizionato. Scala invariata (1).
+    /// <summary>Lifts the piece from the ground up above Jammo's head, then bobs it until placed. Scale unchanged (1).</summary>
     public IEnumerator PickUpRoutine(Transform piece)
     {
         if (piece == null || IsDead) yield break;
 
-        // Da qui Jammo "trasporta": un colpo subìto farà perdere il pezzo.
+        // From here Jammo "carries": a hit taken will lose the piece.
         _carrying = true;
         _dropRequested = false;
 
@@ -229,10 +226,10 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
         float t = 0f;
         while (t < liftDuration)
         {
-            if (IsDead || _dropRequested) yield break; // colpito durante la presa: il director farà il drop
+            if (IsDead || _dropRequested) yield break; // hit during pickup: the director will do the drop
             t += Time.deltaTime;
             float k = Mathf.Clamp01(t / liftDuration);
-            float e = 1f - Mathf.Pow(1f - k, 3f); // ease-out (come VortexEnterTransition)
+            float e = 1f - Mathf.Pow(1f - k, 3f); // ease-out (like VortexEnterTransition)
             piece.position = Vector3.Lerp(startPos, anchor.position, e);
             yield return null;
         }
@@ -244,16 +241,14 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
         _bob = StartCoroutine(BobRoutine(piece));
     }
 
-    // Consegna: il pezzo (Jammo scala-1) viene staccato da Jammo e svanisce
-    // (scale-down). La parte solida la fa comparire StatueRig.OnSlotFilled sul
-    // renderer della statua grande; qui non si sposta/allinea nulla.
+    /// <summary>Delivery: the piece (scale-1 Jammo) is detached and vanishes (scale-down). The solid part appears via StatueRig.OnSlotFilled; nothing is moved/aligned here.</summary>
     public IEnumerator ReleasePiece(Transform piece)
     {
         _carrying = false;
         if (_bob != null) { StopCoroutine(_bob); _bob = null; }
         if (piece == null) yield break;
 
-        piece.SetParent(null, true); // stacca da Jammo: il pool può riusarlo
+        piece.SetParent(null, true); // detach from Jammo: the pool can reuse it
 
         Vector3 startScale = piece.localScale;
         float t = 0f;
@@ -268,9 +263,7 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
         piece.localScale = Vector3.zero;
     }
 
-    // Consegna che LASCIA il pezzo visibile (impilamento sull'altare): lo stacca
-    // da Jammo e lo porta allo slot, scala invariata (1). Il pooling lo fa il
-    // chiamante a fine fase, non qui.
+    /// <summary>Delivery that KEEPS the piece visible (stacking on the altar): detaches it from Jammo and moves it to the slot, scale unchanged (1). Pooling is done by the caller at end of phase, not here.</summary>
     public IEnumerator PlacePiece(Transform piece, Vector3 target)
     {
         _carrying = false;
@@ -292,8 +285,7 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
         piece.position = target;
     }
 
-    // Pezzo PERSO: Jammo è stato colpito mentre lo trasportava. Lo stacca e lo
-    // fa cadere a terra svanendo (la statua NON progredisce per questo pezzo).
+    /// <summary>Piece LOST: Jammo was hit while carrying it. Detaches it and drops it to the ground, vanishing (the statue does NOT progress for this piece).</summary>
     public IEnumerator DropCarriedPiece(Transform piece)
     {
         _carrying = false;
@@ -303,7 +295,7 @@ public class JammoCarrier : MonoBehaviour, IDamageReaction
         piece.SetParent(null, true);
 
         Vector3 startPos = piece.position;
-        Vector3 endPos = startPos + Vector3.down * 0.5f; // tonfo a terra
+        Vector3 endPos = startPos + Vector3.down * 0.5f; // thud to the ground
         Vector3 startScale = piece.localScale;
         float t = 0f;
         while (t < placeDuration)
