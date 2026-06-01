@@ -1,8 +1,10 @@
 namespace Vellum.AI.Fuzzy
 {
-    // Funzione di appartenenza di una fuzzy set: dato un valore crisp restituisce
-    // il grado di appartenenza in [0,1]. Forme classiche (triangolo, trapezio,
-    // spalle) costruite via factory. Struct immutabile: nessuna alloc, copiabile.
+    /// <summary>
+    /// Membership function of a fuzzy set: given a crisp value it returns the
+    /// membership degree in [0,1]. Classic shapes (triangle, trapezoid, shoulders)
+    /// built via factory methods. Immutable struct: no allocations, copyable.
+    /// </summary>
     public readonly struct MembershipFunction
     {
         private enum Shape { Triangle, Trapezoid, LeftShoulder, RightShoulder }
@@ -16,22 +18,23 @@ namespace Vellum.AI.Fuzzy
             _a = a; _b = b; _c = c; _d = d;
         }
 
-        // Triangolo: 0 fino ad a, sale al picco in b, scende a 0 in c.
+        /// <summary>Triangle: 0 up to a, rises to the peak at b, falls back to 0 at c.</summary>
         public static MembershipFunction Triangle(float a, float b, float c)
             => new MembershipFunction(Shape.Triangle, a, b, c, 0f);
 
-        // Trapezio: 0 fino ad a, sale ad 1 in b, resta 1 fino a c, scende a 0 in d.
+        /// <summary>Trapezoid: 0 up to a, rises to 1 at b, stays 1 until c, falls to 0 at d.</summary>
         public static MembershipFunction Trapezoid(float a, float b, float c, float d)
             => new MembershipFunction(Shape.Trapezoid, a, b, c, d);
 
-        // Spalla sinistra: 1 fino ad a, scende a 0 in b (set "basso/poco").
+        /// <summary>Left shoulder: 1 up to a, falls to 0 at b (a "low/few" set).</summary>
         public static MembershipFunction LeftShoulder(float a, float b)
             => new MembershipFunction(Shape.LeftShoulder, a, b, 0f, 0f);
 
-        // Spalla destra: 0 fino ad a, sale ad 1 in b e resta 1 (set "alto/molto").
+        /// <summary>Right shoulder: 0 up to a, rises to 1 at b and stays 1 (a "high/many" set).</summary>
         public static MembershipFunction RightShoulder(float a, float b)
             => new MembershipFunction(Shape.RightShoulder, a, b, 0f, 0f);
 
+        /// <summary>Returns the membership degree in [0,1] of the crisp value <paramref name="x"/>.</summary>
         public float Evaluate(float x)
         {
             switch (_shape)

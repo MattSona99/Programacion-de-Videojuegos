@@ -2,10 +2,11 @@ using System.Collections.Generic;
 
 namespace Vellum.AI.Fuzzy
 {
-    // Variabile linguistica fuzzy: un nome, un dominio [Min,Max] e un insieme di
-    // set etichettati (es. "Near", "Medium", "Far"). Costruita una volta (in
-    // EnemyFuzzyBrain); a runtime si interroga per indice → niente lookup per
-    // stringa nel ciclo di valutazione.
+    /// <summary>
+    /// Fuzzy linguistic variable: a name, a domain [Min,Max] and a set of labelled
+    /// fuzzy sets (e.g. "Near", "Medium", "Far"). Built once (e.g. in EnemyFuzzyBrain);
+    /// at runtime it is queried by index → no string lookups inside the evaluation loop.
+    /// </summary>
     public sealed class FuzzyVariable
     {
         public string Name { get; }
@@ -22,7 +23,7 @@ namespace Vellum.AI.Fuzzy
             Max = max;
         }
 
-        // Fluente: aggiunge un set etichettato. Usata solo in fase di costruzione.
+        /// <summary>Fluent: adds a labelled fuzzy set. Used only during construction.</summary>
         public FuzzyVariable Set(string label, MembershipFunction func)
         {
             _labels.Add(label);
@@ -32,10 +33,10 @@ namespace Vellum.AI.Fuzzy
 
         public int SetCount => _funcs.Count;
 
-        // -1 se l'etichetta non esiste (risolta a build-time dal controller).
+        /// <summary>Index of the labelled set, or -1 if missing (resolved at build-time by the controller).</summary>
         public int IndexOf(string label) => _labels.IndexOf(label);
 
-        // Grado di appartenenza del valore crisp x al set di indice setIndex.
+        /// <summary>Membership degree of the crisp value <paramref name="x"/> in the set at <paramref name="setIndex"/>.</summary>
         public float Membership(int setIndex, float x) => _funcs[setIndex].Evaluate(x);
     }
 }

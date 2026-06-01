@@ -1,9 +1,11 @@
 namespace Vellum.AI.Fuzzy
 {
-    // Regola fuzzy risolta in indici (no stringhe a runtime):
-    //   IF input[antVar[i]] È antSet[i]  (AND = min su tutti gli antecedenti)
-    //   THEN output[OutputVar] È OutputSet.
-    // Immutabile; gli array vengono costruiti una sola volta dal builder.
+    /// <summary>
+    /// Fuzzy rule resolved into indices (no strings at runtime):
+    ///   IF input[AntecedentVar[i]] IS AntecedentSet[i]  (AND = min over all antecedents)
+    ///   THEN output[OutputVar] IS OutputSet.
+    /// Immutable; the arrays are built once by the controller's builder.
+    /// </summary>
     public readonly struct FuzzyRule
     {
         public readonly int[] AntecedentVar;
