@@ -1,14 +1,15 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Generatore di percorsi 4-direzionali self-avoiding di lunghezza ESATTA tra due
-// celle. A differenza dell'approccio GA (rimosso), qui si usa un backtracking
-// randomizzato con potatura Manhattan+parità ed euristica di Warnsdorff: trova
-// quasi sempre un percorso valido in pochi ms quando è fattibile.
-//
-// "Self-avoiding" = ogni cella usata una sola volta → niente incroci per
-// costruzione. La selezione estetica resta affidata a FuzzyPathEvaluator:
-// si generano più candidati e si tiene quello col punteggio fuzzy più alto.
+/// <summary>
+/// Generator of 4-directional self-avoiding paths of EXACT length between two cells. It uses a
+/// randomized backtracking search with Manhattan+parity pruning and the Warnsdorff heuristic:
+/// it almost always finds a valid path within a few ms when one is feasible.
+///
+/// "Self-avoiding" = each cell used once → no crossings by construction. The aesthetic
+/// selection is delegated to <see cref="FuzzyPathEvaluator"/>: several candidates are generated
+/// and the one with the highest fuzzy score is kept.
+/// </summary>
 public class SelfAvoidingPathGenerator
 {
     private static readonly Vector2Int[] _deltas =
@@ -19,7 +20,7 @@ public class SelfAvoidingPathGenerator
         new Vector2Int(-1, 0),  // W
     };
 
-    // 8-vicinato (ortogonali + diagonali) per il controllo di spaziatura.
+    // 8-neighborhood (orthogonal + diagonal) for the spacing check.
     private static readonly Vector2Int[] _deltas8 =
     {
         new Vector2Int(1, 0), new Vector2Int(-1, 0),
@@ -28,28 +29,33 @@ public class SelfAvoidingPathGenerator
         new Vector2Int(-1, 1), new Vector2Int(-1, -1),
     };
 
-    // Tetto di nodi espansi per singolo tentativo: oltre questo si riparte da
-    // zero con un nuovo ordine random (evita rami patologici molto profondi).
+    // Cap on expanded nodes per attempt: beyond this, restart from scratch with a new
+    // random order (avoids very deep pathological branches).
     private const int NODE_BUDGET = 300000;
-    // Tentativi di restart per ogni candidato richiesto. La spaziatura 8-dir è
-    // un vincolo stretto: serve un po' di margine di restart.
+    // Restart attempts per requested candidate. The 8-dir spacing is a tight constraint:
+    // a bit of restart margin is needed.
     private const int MAX_ATTEMPTS_PER_CANDIDATE = 150;
 
     private List<Vector2Int> _path;
     private HashSet<Vector2Int> _visited;
     private HashSet<Vector2Int> _allowed;
     private Vector2Int _target;
-    private Vector2Int _mandatedPenult; // la penultima tile è obbligata (es. Tile_12_21)
-    private int _penultIndex;           // indice 0-based della penultima tile
+    private Vector2Int _mandatedPenult; // the penultimate tile is mandated (e.g. Tile_12_21)
+    private int _penultIndex;           // 0-based index of the penultimate tile
     private int _totalCells;
     private int _nodeBudget;
     private System.Random _rng;
 
-    // Un buffer d'ordine direzioni per livello di profondità: evita che le
-    // chiamate ricorsive figlie sovrascrivano l'ordinamento del padre e azzera
-    // le allocazioni per-nodo.
+    // One direction-order buffer per depth level: prevents child recursive calls from
+    // overwriting the parent's ordering and zeroes per-node allocations.
     private int[][] _dirBuffers;
 
+    /// <summary>
+    /// Generates the best of <paramref name="candidateCount"/> self-avoiding paths of exactly
+    /// <paramref name="totalCells"/> cells from <paramref name="start"/> to <paramref name="target"/>,
+    /// constrained to pass through <paramref name="mandatedPenult"/> as the penultimate tile and
+    /// scored by <paramref name="fuzzy"/>. Throws if the constraints are infeasible.
+    /// </summary>
     public GridPath Generate(
         Vector2Int start,
         Vector2Int target,
@@ -64,19 +70,19 @@ public class SelfAvoidingPathGenerator
         if (allowed == null || !allowed.Contains(start) || !allowed.Contains(target))
         {
             throw new System.InvalidOperationException(
-                $"Start {start} o Target {target} non corrispondono a una PathTile della griglia.");
+                $"Start {start} or Target {target} do not match a PathTile of the grid.");
         }
         if (!allowed.Contains(mandatedPenult))
         {
             throw new System.InvalidOperationException(
-                $"La penultima tile obbligata {mandatedPenult} non corrisponde a una PathTile della griglia.");
+                $"The mandated penultimate tile {mandatedPenult} does not match a PathTile of the grid.");
         }
 
         int manPenultTarget = Mathf.Abs(target.x - mandatedPenult.x) + Mathf.Abs(target.y - mandatedPenult.y);
         if (manPenultTarget != 1)
         {
             throw new System.InvalidOperationException(
-                $"La penultima tile obbligata {mandatedPenult} deve essere adiacente (ortogonale) alla tile finale {target}.");
+                $"The mandated penultimate tile {mandatedPenult} must be (orthogonally) adjacent to the final tile {target}.");
         }
 
         int manhattan = Mathf.Abs(target.x - start.x) + Mathf.Abs(target.y - start.y);
@@ -84,23 +90,23 @@ public class SelfAvoidingPathGenerator
         if (manhattan > moves)
         {
             throw new System.InvalidOperationException(
-                $"Percorso impossibile: Manhattan({start},{target})={manhattan} > mosse disponibili={moves}.");
+                $"Impossible path: Manhattan({start},{target})={manhattan} > available moves={moves}.");
         }
         if (((moves - manhattan) & 1) != 0)
         {
             throw new System.InvalidOperationException(
-                $"Parità incompatibile: mosse={moves} e Manhattan={manhattan} devono avere la stessa parità.");
+                $"Incompatible parity: moves={moves} and Manhattan={manhattan} must have the same parity.");
         }
 
-        // Vincolo penultima: il percorso deve raggiungere mandatedPenult all'indice
-        // totalCells-2 (penultIndex mosse dallo start).
+        // Penultimate constraint: the path must reach mandatedPenult at index
+        // totalCells-2 (penultIndex moves from the start).
         _penultIndex = totalCells - 2;
         int manStartPenult = Mathf.Abs(mandatedPenult.x - start.x) + Mathf.Abs(mandatedPenult.y - start.y);
         if (manStartPenult > _penultIndex || ((_penultIndex - manStartPenult) & 1) != 0)
         {
             throw new System.InvalidOperationException(
-                $"Penultima tile irraggiungibile: Manhattan(Start,{mandatedPenult})={manStartPenult}, mosse={_penultIndex}. " +
-                $"Servono valore <= {_penultIndex} e stessa parità. Sposta start/end/penultima.");
+                $"Penultimate tile unreachable: Manhattan(Start,{mandatedPenult})={manStartPenult}, moves={_penultIndex}. " +
+                $"Need value <= {_penultIndex} and same parity. Move start/end/penultimate.");
         }
 
         _allowed = allowed;
@@ -131,14 +137,14 @@ public class SelfAvoidingPathGenerator
         if (best == null)
         {
             throw new System.InvalidOperationException(
-                $"Backtracking non ha prodotto nessun percorso valido di {totalCells} celle da {start} a {target} " +
-                $"(tentativi per candidato={MAX_ATTEMPTS_PER_CANDIDATE}). Verifica che la griglia di tile sia continua tra start ed end.");
+                $"Backtracking produced no valid path of {totalCells} cells from {start} to {target} " +
+                $"(attempts per candidate={MAX_ATTEMPTS_PER_CANDIDATE}). Check that the tile grid is continuous between start and end.");
         }
         return best;
     }
 
-    // Un candidato = una ricerca con backtracking; in caso di budget esaurito
-    // riparte con un nuovo ordine random (il rng condiviso garantisce varietà).
+    // One candidate = one backtracking search; if the budget is exhausted it restarts
+    // with a new random order (the shared rng guarantees variety).
     private GridPath SearchOne(Vector2Int start)
     {
         for (int attempt = 0; attempt < MAX_ATTEMPTS_PER_CANDIDATE; attempt++)
@@ -165,15 +171,15 @@ public class SelfAvoidingPathGenerator
         }
         if (--_nodeBudget <= 0) return false;
 
-        // Buffer d'ordine proprio di questo livello: le chiamate figlie usano
-        // un buffer diverso, quindi l'iterazione del padre non viene corrotta.
+        // This level's own order buffer: child calls use a different buffer, so the
+        // parent's iteration is not corrupted.
         int[] order = _dirBuffers[_path.Count - 1];
         order[0] = 0; order[1] = 1; order[2] = 2; order[3] = 3;
 
-        // Ordine direzioni: shuffle random + tie-break Warnsdorff (meno uscite
-        // libere prima) → backtracking rapido e percorsi sempre diversi.
+        // Direction order: random shuffle + Warnsdorff tie-break (fewest free exits
+        // first) → fast backtracking and always-varied paths.
         Shuffle(order);
-        // Selection sort stabile su 4 elementi per grado di libertà del vicino.
+        // Stable selection sort over 4 elements by the neighbor's degree of freedom.
         for (int a = 0; a < 4; a++)
         {
             int minDeg = int.MaxValue;
@@ -191,35 +197,34 @@ public class SelfAvoidingPathGenerator
             int tmp = order[a]; order[a] = order[pick]; order[pick] = tmp;
         }
 
-        int movesRemaining = _totalCells - _path.Count; // celle ancora da aggiungere
+        int movesRemaining = _totalCells - _path.Count; // cells still to add
         for (int d = 0; d < 4; d++)
         {
             Vector2Int next = current + _deltas[order[d]];
             if (!IsCandidate(next)) continue;
 
-            // Potatura: dal "next" servono (movesRemaining-1) mosse per chiudere.
+            // Pruning: from "next", (movesRemaining-1) moves are needed to close.
             int dist = Mathf.Abs(_target.x - next.x) + Mathf.Abs(_target.y - next.y);
             int budget = movesRemaining - 1;
             if (dist > budget || ((budget - dist) & 1) != 0) continue;
-            // Il target si può toccare solo all'ultimo passo (altrimenti andrebbe
-            // rivisitato, violando il self-avoiding).
+            // The target can only be touched on the last step (otherwise it would be
+            // revisited, violating self-avoidance).
             if (next == _target && _path.Count + 1 != _totalCells) continue;
-            // Spaziatura (anche diagonale): gli unici contatti ammessi per "next"
-            // sono il predecessore (current) e il pre-predecessore (l'angolo
-            // naturale di una curva a L). Qualsiasi altra tile del percorso nel
-            // suo 8-vicinato = due bracci che si toccano → vietato.
+            // Spacing (diagonal too): the only contacts allowed for "next" are the
+            // predecessor (current) and the pre-predecessor (the natural corner of an
+            // L turn). Any other path tile in its 8-neighborhood = two arms touching → forbidden.
             Vector2Int prevPrev = _path.Count >= 2 ? _path[_path.Count - 2] : current;
             if (!IsSpaced(next, current, prevPrev)) continue;
 
-            // Penultima obbligata: la tile imposta (es. Tile_12_21) può comparire
-            // SOLO all'indice penultimo, e quell'indice DEVE essere proprio lei.
-            // Così la direzione d'arrivo sulla tile finale è sempre la stessa.
-            int nextIndex = _path.Count; // indice 0-based che avrà "next"
+            // Mandated penultimate: the fixed tile (e.g. Tile_12_21) may appear ONLY at the
+            // penultimate index, and that index MUST be it. This keeps the arrival direction
+            // onto the final tile always the same.
+            int nextIndex = _path.Count; // 0-based index that "next" will have
             if (next == _mandatedPenult && nextIndex != _penultIndex) continue;
             if (nextIndex == _penultIndex && next != _mandatedPenult) continue;
 
-            // Anti-"diagonale": vietate due svolte consecutive → tra una curva e
-            // l'altra c'è sempre almeno un tratto dritto, niente scalinate.
+            // Anti-"diagonal": two consecutive turns are forbidden → between one curve and
+            // the next there's always at least one straight stretch, no staircases.
             if (_path.Count >= 3)
             {
                 Vector2Int dirInCur = current - _path[_path.Count - 2];
@@ -247,9 +252,9 @@ public class SelfAvoidingPathGenerator
         return _allowed.Contains(cell) && !_visited.Contains(cell);
     }
 
-    // true se nel 8-vicinato di "cell" le uniche tile del percorso sono il
-    // predecessore e il pre-predecessore (angolo della curva). Così due bracci
-    // paralleli restano separati da almeno una tile anche in diagonale.
+    // true if, in "cell"'s 8-neighborhood, the only path tiles are the predecessor and
+    // the pre-predecessor (the curve's corner). This keeps two parallel arms separated by
+    // at least one tile, even diagonally.
     private bool IsSpaced(Vector2Int cell, Vector2Int predecessor, Vector2Int prevPrev)
     {
         for (int i = 0; i < 8; i++)

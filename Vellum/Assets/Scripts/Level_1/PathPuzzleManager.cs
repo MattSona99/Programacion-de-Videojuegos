@@ -4,90 +4,95 @@ using UnityEngine.Events;
 using System.Collections;
 using System.Collections.Generic;
 
+/// <summary>
+/// Orchestrates the Act 1 memory path puzzle: procedurally generates a 73-tile self-avoiding
+/// path (via <see cref="SelfAvoidingPathGenerator"/> + <see cref="FuzzyPathEvaluator"/>), drives
+/// Jammo's guided walk, validates the Player's steps (with a grace period and a halfway
+/// checkpoint), reveals the door step by step, offers a limited memory hint, and handles
+/// fall/respawn on wrong tiles.
+/// </summary>
 public class PathPuzzleManager : MonoBehaviour
 {
-    [Header("Stato del Puzzle")]
+    [Header("Puzzle state")]
     public bool isPuzzleActive = false;
-    public bool isPlayerFalling = false; // NUOVA VARIABILE
+    public bool isPlayerFalling = false;
     public bool IsPuzzleCompleted { get; private set; }
 
-    [Header("Impostazioni Percorso")]
+    [Header("Path settings")]
     public List<PathTile> correctPath = new List<PathTile>();
 
-    // Derivato dal percorso generato (metà esatta di 0..72 = 36). Resta public
-    // perché JammoGuideController lo legge; nascosto in Inspector perché non va
-    // più impostato a mano.
+    // Derived from the generated path (exact half of 0..72 = 36). Stays public because
+    // JammoGuideController reads it; hidden in the Inspector because it must not be set by hand.
     [HideInInspector] public int checkpointIndex;
 
-    [Header("Tile Fisse del Percorso")]
-    [Tooltip("PathTile della scena che resta sempre come tile di Inizio (correctPath[0]). Es: Tile_15_15.")]
+    [Header("Fixed path tiles")]
+    [Tooltip("Scene PathTile that always stays as the Start tile (correctPath[0]). E.g. Tile_15_15.")]
     [SerializeField] private PathTile startTile;
-    [Tooltip("PathTile della scena che resta sempre come tile di Fine (correctPath[72]). Es: Tile_13_21.")]
+    [Tooltip("Scene PathTile that always stays as the End tile (correctPath[72]). E.g. Tile_13_21.")]
     [SerializeField] private PathTile endTile;
-    [Tooltip("Penultima tile obbligata (correctPath[71]): fissa la direzione d'arrivo sulla tile finale. Deve essere adiacente a endTile. Es: Tile_12_21.")]
+    [Tooltip("Mandated penultimate tile (correctPath[71]): fixes the arrival direction onto the final tile. Must be adjacent to endTile. E.g. Tile_12_21.")]
     [SerializeField] private PathTile endApproachTile;
 
-    [Header("Generazione Procedurale (Backtracking + Fuzzy)")]
-    [Tooltip("Distanza tra i centri di due tile adiacenti. Deve combaciare con il tileSize di TileGridGenerator.")]
+    [Header("Procedural generation (Backtracking + Fuzzy)")]
+    [Tooltip("Distance between the centers of two adjacent tiles. Must match TileGridGenerator's tileSize.")]
     [SerializeField] private float tileSize = 2f;
-    [Tooltip("0 = seed random ogni Play. Valore != 0 = seed deterministico (utile in debug).")]
+    [Tooltip("0 = random seed every Play. Non-zero = deterministic seed (useful for debugging).")]
     [SerializeField] private int randomSeed = 0;
-    [Tooltip("Quanti percorsi candidati generare: viene tenuto quello col punteggio estetico (Fuzzy) più alto.")]
+    [Tooltip("How many candidate paths to generate: the one with the highest aesthetic (Fuzzy) score is kept.")]
     [SerializeField] private int candidateCount = 12;
 
-    [Header("Riferimenti")]
+    [Header("References")]
     public Transform player;
     public Transform startingPoint;
-    public JammoGuideController jammoController; // Il nuovo script per muovere Jammo
+    public JammoGuideController jammoController; // The script that moves Jammo
 
-    [Tooltip("Pavimento globale del livello — viene spento all'inizio del puzzle così le tile sbagliate non sostengono più il player.")]
+    [Tooltip("Level's global floor — turned off at puzzle start so wrong tiles no longer support the player.")]
     [SerializeField] private GameObject globalFloor;
 
-    [Tooltip("Secondi di caduta prima del respawn dopo una tile sbagliata.")]
+    [Tooltip("Seconds of falling before respawn after a wrong tile.")]
     [SerializeField] private float failResetDelay = 1.5f;
 
-    [Header("Aiuto a Memoria")]
-    [Tooltip("Quante volte il player può usare l'aiuto a memoria in un tentativo.")]
+    [Header("Memory hint")]
+    [Tooltip("How many times the player can use the memory hint per attempt.")]
     [SerializeField] private int memoryHintCharges = 3;
-    [Tooltip("Quante tile corrette davanti al player vengono illuminate.")]
+    [Tooltip("How many correct tiles ahead of the player are lit.")]
     [SerializeField] private int hintRevealCount = 8;
-    [Tooltip("Secondi di luce fissa prima del lampeggio di spegnimento.")]
+    [Tooltip("Seconds of steady light before the turn-off blink.")]
     [SerializeField] private float hintRevealDuration = 5f;
-    [Tooltip("Numero di lampeggi con cui l'aiuto si spegne.")]
+    [Tooltip("Number of blinks the hint turns off with.")]
     [SerializeField] private int hintBlinkCount = 3;
-    [Tooltip("Durata (secondi) di ogni semi-fase del lampeggio dell'aiuto.")]
+    [Tooltip("Duration (seconds) of each half-phase of the hint blink.")]
     [SerializeField] private float hintBlinkInterval = 0.4f;
-    [Tooltip("Tasto (nuovo Input System) per attivare l'aiuto a memoria.")]
+    [Tooltip("Key (new Input System) to activate the memory hint.")]
     [SerializeField] private Key memoryHintKey = Key.Q;
-    [Tooltip("CinematicFallManager: blocca il movimento del player (mantenendo il look) durante l'aiuto. Stesso oggetto usato da JammoGuideController.")]
+    [Tooltip("CinematicFallManager: locks the player's movement (keeping look) during the hint. Same object used by JammoGuideController.")]
     [SerializeField] private CinematicFallManager cinematicManager;
-    [Tooltip("Opzionale: invocato a ogni uso dell'aiuto (SFX, battuta di Jammo, ecc.).")]
+    [Tooltip("Optional: invoked on every hint use (SFX, Jammo quip, etc.).")]
     public UnityEvent onHintUsed;
-    [Tooltip("Opzionale: invocato quando le cariche dell'aiuto finiscono.")]
+    [Tooltip("Optional: invoked when the hint charges run out.")]
     public UnityEvent onHintsDepleted;
 
-    [Header("Porta")]
-    [Tooltip("Controller della porta che si costruisce in altezza via shader.")]
+    [Header("Door")]
+    [Tooltip("Controller of the door that builds up in height via shader.")]
     [SerializeField] private DoorBuildController doorController;
 
-    [Tooltip("Numero totale di step di reveal della porta (8 = 8 scatti, ognuno copre 1/8 dell'altezza).")]
+    [Tooltip("Total number of door reveal steps (8 = 8 increments, each covering 1/8 of the height).")]
     [SerializeField] private int doorTotalSteps = 8;
 
-    [Tooltip("Quante tile giuste servono tra uno step di porta e il successivo.")]
+    [Tooltip("How many correct tiles are needed between one door step and the next.")]
     [SerializeField] private int doorTilesPerStep = 9;
 
-    [Tooltip("Door portal della scena: viene attivato automaticamente quando il puzzle è completato (utile se la porta è geometricamente tra penultima e ultima tile).")]
+    [Tooltip("Scene door portal: auto-activated when the puzzle is completed (useful if the door is geometrically between the penultimate and last tile).")]
     [SerializeField] private DoorPortal doorPortal;
 
     private int currentStepIndex = 0;
-    // Indice più alto della correctPath che il player ha indovinato in QUALUNQUE
-    // tentativo. Ci serve per ri-accendere il percorso già scoperto dopo un fail
-    // e per non far ripartire la cinematica del checkpoint al retry.
+    // Highest correctPath index the player has guessed in ANY attempt. Used to re-light the
+    // already-discovered path after a fail and to not replay the checkpoint cinematic on retry.
     private int _maxCorrectStepReached = -1;
     private int _lastDoorStep = 0;
-    // Quando true, le tile fuori percorso non fanno cadere il player ma si
-    // illuminano e basta. Concesso dopo StartPuzzleSequence, FailAndReset e fine
-    // delle camminate di Jammo; consumato dal primo avanzamento "first time".
+    // When true, off-path tiles don't make the player fall but only light up. Granted after
+    // StartPuzzleSequence, FailAndReset and the end of Jammo's walks; consumed by the first
+    // "first time" advance.
     private bool _inGracePeriod = true;
     private HashSet<PathTile> _correctSet;
     private PathTile[] _allTiles;
@@ -112,25 +117,26 @@ public class PathPuzzleManager : MonoBehaviour
     }
 
     private const int TOTAL_PATH_LENGTH = 73;
-    private const int CHECKPOINT_INDEX = (TOTAL_PATH_LENGTH - 1) / 2; // 36, metà esatta
+    private const int CHECKPOINT_INDEX = (TOTAL_PATH_LENGTH - 1) / 2; // 36, exact half
 
-    // Genera con backtracking randomizzato un percorso self-avoiding (niente
-    // incroci) di 73 tile da startTile a endTile, scegliendo tra più candidati
-    // quello col punteggio Fuzzy migliore. Il Checkpoint è la tile a metà
-    // percorso (indice 36), derivata automaticamente.
-    // Chiamato in Start() (ogni Play) e dal bottone Inspector "Genera Percorso!".
+    /// <summary>
+    /// Generates a self-avoiding 73-tile path (no crossings) from startTile to endTile via
+    /// randomized backtracking, keeping the best of several candidates by Fuzzy score. The
+    /// checkpoint is the halfway tile (index 36), derived automatically. Called in Start()
+    /// (every Play) and from the Inspector "Generate Path!" button.
+    /// </summary>
     public void GenerateRandomPath()
     {
         if (startTile == null || endTile == null || endApproachTile == null)
         {
-            Debug.LogError("[PathPuzzleManager] startTile / endTile / endApproachTile non sono assegnate. Niente generazione.", this);
+            Debug.LogError("[PathPuzzleManager] startTile / endTile / endApproachTile are not assigned. No generation.", this);
             return;
         }
 
         BuildTileMap();
         if (_tileMap == null || _tileMap.Count == 0)
         {
-            Debug.LogError("[PathPuzzleManager] Nessuna PathTile trovata nella scena.", this);
+            Debug.LogError("[PathPuzzleManager] No PathTile found in the scene.", this);
             return;
         }
 
@@ -143,8 +149,8 @@ public class PathPuzzleManager : MonoBehaviour
         if (manS_E > moves || ((moves - manS_E) & 1) != 0)
         {
             Debug.LogError(
-                $"[PathPuzzleManager] Start→End non compatibile con {TOTAL_PATH_LENGTH} tile: Manhattan(S,E)={manS_E}, mosse={moves}. " +
-                $"Servono manS_E <= {moves} e stessa parità. Sposta startTile/endTile.", this);
+                $"[PathPuzzleManager] Start→End not compatible with {TOTAL_PATH_LENGTH} tiles: Manhattan(S,E)={manS_E}, moves={moves}. " +
+                $"Need manS_E <= {moves} and same parity. Move startTile/endTile.", this);
             return;
         }
 
@@ -162,7 +168,7 @@ public class PathPuzzleManager : MonoBehaviour
 
             if (full.Count != TOTAL_PATH_LENGTH)
             {
-                Debug.LogError($"[PathPuzzleManager] Path generato ha {full.Count} celle, atteso {TOTAL_PATH_LENGTH}.", this);
+                Debug.LogError($"[PathPuzzleManager] Generated path has {full.Count} cells, expected {TOTAL_PATH_LENGTH}.", this);
                 return;
             }
 
@@ -176,18 +182,18 @@ public class PathPuzzleManager : MonoBehaviour
                 }
                 else
                 {
-                    Debug.LogError($"[PathPuzzleManager] Cella {cell} (step {i}) non corrisponde a nessuna PathTile in scena.", this);
+                    Debug.LogError($"[PathPuzzleManager] Cell {cell} (step {i}) matches no PathTile in the scene.", this);
                     correctPath.Clear();
                     return;
                 }
             }
 
             checkpointIndex = CHECKPOINT_INDEX;
-            Debug.Log($"[PathPuzzleManager] Percorso generato (seed={seed}, lunghezza={correctPath.Count}, checkpoint@{checkpointIndex}).");
+            Debug.Log($"[PathPuzzleManager] Path generated (seed={seed}, length={correctPath.Count}, checkpoint@{checkpointIndex}).");
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"[PathPuzzleManager] Generazione fallita: {ex.Message}", this);
+            Debug.LogError($"[PathPuzzleManager] Generation failed: {ex.Message}", this);
         }
     }
 
@@ -218,16 +224,16 @@ public class PathPuzzleManager : MonoBehaviour
 
     private Vector2Int WorldToCell(Vector3 worldPos)
     {
-        // Mathf.RoundToInt fa banker's rounding (round half to even): con tile center
-        // a metà di tileSize (es. world 1, 3, 5… con tileSize=2) due tile adiacenti
-        // verrebbero collassate sulla stessa cella. Usiamo round half-up esplicito.
+        // Mathf.RoundToInt does banker's rounding (round half to even): with tile centers at
+        // half of tileSize (e.g. world 1, 3, 5… with tileSize=2) two adjacent tiles would
+        // collapse onto the same cell. We use explicit round half-up.
         float inv = tileSize > 0f ? 1f / tileSize : 1f;
         return new Vector2Int(
             Mathf.FloorToInt(worldPos.x * inv + 0.5f),
             Mathf.FloorToInt(worldPos.z * inv + 0.5f));
     }
 
-    // Questa funzione verrà chiamata dai tuoi dialoghi per iniziare il gioco!
+    /// <summary>Starts the puzzle: enables validation, turns off the rescue floor, and sends Jammo to the checkpoint. Wired from dialogues.</summary>
     public void StartPuzzleSequence()
     {
         isPuzzleActive = true;
@@ -241,13 +247,13 @@ public class PathPuzzleManager : MonoBehaviour
         _correctSet = new HashSet<PathTile>(correctPath);
         _allTiles = FindObjectsByType<PathTile>(FindObjectsSortMode.None);
 
-        // NIENTE bulk SetSolid(false): se il player è sopra una tile non-corretta in questo
-        // istante (es. la tile dove ha attivato Jammo), gli si aprirebbe il pavimento sotto.
-        // La caduta sulle tile sbagliate avviene lazy in CheckPlayerStep al primo passo.
+        // NO bulk SetSolid(false): if the player is over a non-correct tile right now
+        // (e.g. the tile where Jammo was activated), the floor would open under them.
+        // Falling on wrong tiles happens lazily in CheckPlayerStep on the first step.
 
-        // Spegniamo il "pavimento di soccorso": solo i collider non-trigger del globalFloor
-        // (e dei suoi figli, ESCLUSE le PathTile). Niente SetActive(false): se le tile sono
-        // parented sotto globalFloor, disattivare il parent le farebbe sparire tutte.
+        // Turn off the "rescue floor": only the non-trigger colliders of globalFloor
+        // (and its children, EXCLUDING PathTiles). No SetActive(false): if the tiles are
+        // parented under globalFloor, disabling the parent would make them all disappear.
         if (globalFloor != null)
         {
             if (IsPlayerOverATile())
@@ -256,17 +262,18 @@ public class PathPuzzleManager : MonoBehaviour
             }
             else
             {
-                Debug.LogWarning("[PathPuzzleManager] Il player non risulta sopra nessuna PathTile: lascio attivo il pavimento globale per evitare la caduta immediata. Sposta il player sopra una tile prima di attivare Jammo, oppure estendi la griglia di tile a coprire tutta l'area di attivazione.", this);
+                Debug.LogWarning("[PathPuzzleManager] The player is not over any PathTile: leaving the global floor active to avoid an immediate fall. Move the player over a tile before activating Jammo, or extend the tile grid to cover the whole activation area.", this);
             }
         }
 
-        // Diciamo a Jammo di camminare fino al checkpoint
+        // Tell Jammo to walk to the checkpoint
         jammoController.WalkToCheckpoint();
     }
 
+    /// <summary>Validates a tile the Player stepped on: handles free exploration, on-path backtracking, advancing, grace, and fail.</summary>
     public void CheckPlayerStep(PathTile steppedTile)
     {
-        // Esplorazione libera (puzzle non ancora attivo): illumina e basta.
+        // Free exploration (puzzle not active yet): just light up.
         if (!isPuzzleActive)
         {
             steppedTile.SetColor(steppedTile.playerColor);
@@ -275,9 +282,9 @@ public class PathPuzzleManager : MonoBehaviour
 
         int idx = correctPath.IndexOf(steppedTile);
 
-        // Regola 1 — Backtracking on-path: la tile è già stata scoperta in passato.
-        // Allow, niente advance, ma currentStepIndex si adegua così il prossimo
-        // step "vero" è quello immediatamente successivo a questa posizione.
+        // Rule 1 — On-path backtracking: the tile was already discovered before.
+        // Allow, no advance, but currentStepIndex adjusts so the next "real" step is the
+        // one immediately after this position.
         if (idx >= 0 && idx <= _maxCorrectStepReached)
         {
             steppedTile.SetColor(steppedTile.playerColor);
@@ -285,14 +292,13 @@ public class PathPuzzleManager : MonoBehaviour
             return;
         }
 
-        // Regola 2 — Avanzamento.
-        // Fuori grace: step-by-step rigoroso (solo idx == max + 1).
-        // In grace: oltre allo step rigoroso, è ammesso il "salto a milestone" —
-        //   calpestare direttamente la tile di checkpoint o quella finale fa
-        //   fast-forward di max a quell'indice e fa scattare l'evento. Le altre tile
-        //   intermedie della path durante la grace NON avanzano (cadrebbero in Rule 3
-        //   e si illuminano blu), così holdare W subito dopo l'attivazione non chiude
-        //   accidentalmente la grace facendo poi fallire la tile successiva.
+        // Rule 2 — Advance.
+        // Out of grace: strict step-by-step (only idx == max + 1).
+        // In grace: besides the strict step, a "milestone jump" is allowed —
+        //   stepping directly on the checkpoint or final tile fast-forwards max to that
+        //   index and fires the event. Other intermediate path tiles during grace do NOT
+        //   advance (they fall into Rule 3 and light up blue), so holding W right after
+        //   activation doesn't accidentally end grace and then fail the next tile.
         int endIdx = correctPath.Count - 1;
         bool isNextStep = idx == _maxCorrectStepReached + 1;
         bool isGraceMilestone = _inGracePeriod
@@ -308,8 +314,8 @@ public class PathPuzzleManager : MonoBehaviour
             currentStepIndex = idx + 1;
             _inGracePeriod = false;
 
-            // Door reveal: alziamo la porta in base al nuovo max (può saltare di
-            // più step in un colpo se il player ha skippato in grace).
+            // Door reveal: raise the door based on the new max (it can jump several
+            // steps at once if the player skipped during grace).
             if (doorController != null)
             {
                 int newDoorStep = Mathf.Min((_maxCorrectStepReached + 1) / doorTilesPerStep, doorTotalSteps);
@@ -320,36 +326,37 @@ public class PathPuzzleManager : MonoBehaviour
                 }
             }
 
-            // Checkpoint scatta la prima volta che max attraversa checkpointIndex.
+            // Checkpoint fires the first time max crosses checkpointIndex.
             if (idx >= checkpointIndex && prevMax < checkpointIndex)
             {
-                Debug.Log("[Jammo] Checkpoint raggiunto! Jammo riparte.");
+                Debug.Log("[Jammo] Checkpoint reached! Jammo resumes.");
                 jammoController.ResumeWalkToEnd();
             }
             else if (idx == correctPath.Count - 1)
             {
-                Debug.Log("[Puzzle] Puzzle Completato! Apri la porta!");
+                Debug.Log("[Puzzle] Puzzle Completed! Open the door!");
                 IsPuzzleCompleted = true;
                 if (doorPortal != null) doorPortal.TriggerTransition();
             }
             return;
         }
 
-        // Regola 3 — Off-path o skipping ahead.
+        // Rule 3 — Off-path or skipping ahead.
         if (_inGracePeriod)
         {
-            // Grace: il player sta cercando la strada giusta dopo respawn / dialogo /
-            // camminata di Jammo. Illumina ma non punire.
+            // Grace: the player is looking for the right way after respawn / dialogue /
+            // Jammo's walk. Light up but don't punish.
             steppedTile.SetColor(steppedTile.playerColor);
             return;
         }
 
-        // Non in grace e fuori percorso: FAIL.
+        // Not in grace and off-path: FAIL.
         steppedTile.SetColor(steppedTile.wrongColor);
         steppedTile.SetSolid(false);
         StartCoroutine(FailAndReset());
     }
 
+    /// <summary>Turns off every tile currently lit as Jammo's (robot) trail.</summary>
     public void ClearRobotTrail()
     {
         if (_allTiles == null) return;
@@ -359,9 +366,10 @@ public class PathPuzzleManager : MonoBehaviour
         }
     }
 
-    // Quando Jammo si ferma (checkpoint / fine) la scia viola non sparisce di
-    // colpo: lampeggia e poi si spegne, con lo STESSO timing dell'aiuto a
-    // memoria (hintBlinkCount / hintBlinkInterval).
+    /// <summary>
+    /// When Jammo stops (checkpoint / end) the purple trail doesn't vanish at once: it blinks
+    /// then turns off, using the SAME timing as the memory hint (hintBlinkCount / hintBlinkInterval).
+    /// </summary>
     public IEnumerator BlinkAndClearRobotTrail()
     {
         if (_allTiles == null) yield break;
@@ -385,8 +393,10 @@ public class PathPuzzleManager : MonoBehaviour
         ClearRobotTrail();
     }
 
-    // Aiuto a memoria a cariche limitate. Agganciabile anche da un
-    // InteractableObject via UnityEvent, oltre al tasto in Update().
+    /// <summary>
+    /// Limited-charge memory hint. Can also be wired from an InteractableObject via UnityEvent,
+    /// besides the key in Update().
+    /// </summary>
     public void UseMemoryHint()
     {
         if (!isPuzzleActive || isPlayerFalling) return;
@@ -401,9 +411,10 @@ public class PathPuzzleManager : MonoBehaviour
         _hintRoutine = StartCoroutine(MemoryHintRoutine());
     }
 
+    /// <summary>Lights the next stretch of correct tiles in hint color, blinks them off, then restores per-progress colors.</summary>
     private IEnumerator MemoryHintRoutine()
     {
-        // Player fermo ma camera/mouse vivi per tutta la durata dell'aiuto.
+        // Player stays put but camera/mouse stay live for the whole hint duration.
         if (cinematicManager != null) cinematicManager.SetPlayerMovement(false, keepLookActive: true);
 
         int from = _maxCorrectStepReached + 1;
@@ -434,8 +445,8 @@ public class PathPuzzleManager : MonoBehaviour
             yield return blinkWait;
         }
 
-        // Ripristino coerente col progresso: tile già scoperte restano blu,
-        // le altre tornano spente.
+        // Restore consistent with progress: already-discovered tiles stay blue,
+        // the others turn back off.
         for (int i = from; i <= to; i++)
         {
             PathTile t = correctPath[i];
@@ -448,6 +459,7 @@ public class PathPuzzleManager : MonoBehaviour
         _hintRoutine = null;
     }
 
+    /// <summary>Re-enables the grace period (off-path tiles light up instead of failing).</summary>
     public void GrantGracePeriod()
     {
         _inGracePeriod = true;
@@ -456,8 +468,8 @@ public class PathPuzzleManager : MonoBehaviour
     private bool IsPlayerOverATile()
     {
         if (player == null) return false;
-        // Raycast lungo verso il basso: prendiamo tutti gli hit perché tile e pavimento
-        // potrebbero stare a quote vicine, e ci interessa che ALMENO uno sia una PathTile.
+        // Long downward raycast: take all hits because tiles and floor may sit at close
+        // heights, and we only care that AT LEAST one is a PathTile.
         Vector3 origin = player.position + Vector3.up * 1.0f;
         RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, 5f, ~0, QueryTriggerInteraction.Collide);
         foreach (RaycastHit hit in hits)
@@ -470,8 +482,8 @@ public class PathPuzzleManager : MonoBehaviour
     private void DisableGlobalFloorColliders()
     {
         if (globalFloor == null) return;
-        // Spegne tutti i collider non-trigger di globalFloor e dei suoi figli, EXCEPT quelli
-        // che fanno parte di una PathTile (potrebbero essere parented sotto, non li tocchiamo).
+        // Disable all non-trigger colliders of globalFloor and its children, EXCEPT those
+        // that are part of a PathTile (they may be parented under it; we don't touch them).
         Collider[] cols = globalFloor.GetComponentsInChildren<Collider>(includeInactive: false);
         foreach (Collider c in cols)
         {
@@ -481,12 +493,13 @@ public class PathPuzzleManager : MonoBehaviour
         }
     }
 
+    /// <summary>On a wrong step: pauses tiles, waits, teleports the player to the start, resets colors, and re-lights discovered tiles.</summary>
     private IEnumerator FailAndReset()
     {
-        isPlayerFalling = true; // Blocchiamo le tile
+        isPlayerFalling = true; // Pause the tiles
 
-        // Se un aiuto a memoria è in corso lo interrompiamo e ridiamo il
-        // movimento: il reset colori sotto copre già le tile illuminate.
+        // If a memory hint is in progress, stop it and give movement back:
+        // the color reset below already covers the lit tiles.
         if (_hintRoutine != null)
         {
             StopCoroutine(_hintRoutine);
@@ -498,8 +511,8 @@ public class PathPuzzleManager : MonoBehaviour
 
         if (player != null && startingPoint != null)
         {
-            // Il CharacterController sovrascrive transform.position con la sua copia interna:
-            // va spento un frame per permettere il teleport.
+            // The CharacterController overwrites transform.position with its internal copy:
+            // disable it for a frame to allow the teleport.
             CharacterController cc = player.GetComponent<CharacterController>();
             if (cc != null) cc.enabled = false;
             player.position = startingPoint.position;
@@ -507,8 +520,8 @@ public class PathPuzzleManager : MonoBehaviour
         }
         currentStepIndex = 0;
 
-        // Reset colori + riaccensione di TUTTI i solidi: la disable lazy in CheckPlayerStep
-        // si occuperà di riaprire il vuoto se il player rifà l'errore.
+        // Reset colors + re-enable ALL solids: the lazy disable in CheckPlayerStep
+        // will reopen the gap if the player repeats the mistake.
         if (_allTiles != null)
         {
             foreach (PathTile tile in _allTiles)
@@ -523,21 +536,21 @@ public class PathPuzzleManager : MonoBehaviour
             foreach (PathTile tile in correctPath) { if (tile != null) tile.ResetTile(); }
         }
 
-        // Memoria del percorso: ri-accendiamo le tile già indovinate così il
-        // player vede subito la strada fatta finora e non deve ri-ricordarla.
+        // Path memory: re-light the already-guessed tiles so the player immediately sees
+        // the route so far and doesn't have to re-memorize it.
         for (int i = 0; i <= _maxCorrectStepReached && i < correctPath.Count; i++)
         {
             PathTile t = correctPath[i];
             if (t != null) t.SetColor(t.playerColor);
         }
 
-        // Niente reset della grace qui: dopo un respawn il puzzle è strict, le tile
-        // sbagliate fanno cadere di nuovo. Il player risale via Rule 1 (backtracking
-        // sulle tile già scoperte) o via il next-step rigoroso.
-        isPlayerFalling = false; // Sblocchiamo le tile
+        // No grace reset here: after a respawn the puzzle is strict, wrong tiles make you
+        // fall again. The player climbs back via Rule 1 (backtracking over already-discovered
+        // tiles) or via the strict next-step.
+        isPlayerFalling = false; // Resume the tiles
     }
 
-    // --- STRUMENTI PER L'EDITOR GIZMOS ---
+    // --- EDITOR GIZMO TOOLS ---
     private void OnDrawGizmos()
     {
         if (correctPath == null || correctPath.Count == 0) return;
@@ -546,8 +559,8 @@ public class PathPuzzleManager : MonoBehaviour
             PathTile tile = correctPath[i];
             if (tile != null)
             {
-                // Se è la tile del Checkpoint, la coloriamo di GIALLO invece che verde
-                Gizmos.color = (i == checkpointIndex) ? new Color(1f, 1f, 0f, 0.8f) : new Color(0f, 1f, 0f, 0.5f); 
+                // If it's the Checkpoint tile, color it YELLOW instead of green
+                Gizmos.color = (i == checkpointIndex) ? new Color(1f, 1f, 0f, 0.8f) : new Color(0f, 1f, 0f, 0.5f);
                 
                 Collider col = tile.GetComponent<Collider>();
                 if (col != null) Gizmos.DrawCube(col.bounds.center, col.bounds.size);
