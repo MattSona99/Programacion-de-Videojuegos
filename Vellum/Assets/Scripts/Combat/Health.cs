@@ -2,31 +2,42 @@ using System;
 using UnityEngine;
 using UnityEngine.Events;
 
+/// <summary>UnityEvent carrying a normalized health value (0..1), for HUD wiring.</summary>
 [System.Serializable]
 public class HealthChangedEvent : UnityEvent<float> { }
 
+/// <summary>
+/// Shared health component for every combat actor (Player, enemies, Jammo, boss, statue).
+/// Implements <see cref="IDamageable"/> and runs the damage pipeline: pre-damage
+/// <see cref="IDamageFilter"/> vetoes, damage application (with optional floor/cap),
+/// then <see cref="IDamageReaction"/> callbacks and damage/death events.
+/// </summary>
 public class Health : MonoBehaviour, IDamageable
 {
-    [Header("Vita")]
+    [Header("Health")]
     [SerializeField] private float maxHealth = 100f;
 
-    [Tooltip("Finestra di invulnerabilità dopo un colpo. Player ~0.5, nemici ~0.1, statua 0.")]
+    [Tooltip("Invulnerability window after a hit. Player ~0.5, enemies ~0.1, statue 0.")]
     [SerializeField] private float invulnerabilityDuration = 0f;
 
-    [Header("Eventi")]
-    [Tooltip("Invocato a ogni danno subìto. Passa la vita normalizzata (0..1) per l'HUD.")]
+    [Header("Events")]
+    [Tooltip("Invoked on every hit taken. Passes the normalized health (0..1) for the HUD.")]
     [SerializeField] private HealthChangedEvent onDamaged;
 
-    [Tooltip("Invocato una sola volta quando la vita arriva a 0.")]
+    [Tooltip("Invoked exactly once when health reaches 0.")]
     [SerializeField] private UnityEvent onDied;
 
-    // Evento C# (oltre all'UnityEvent onDied) per agganci a runtime: WaveManager,
-    // pooling, restart arena. Si sottoscrive una volta sola e sopravvive al riuso.
+    /// <summary>
+    /// C# event (in addition to the <see cref="onDied"/> UnityEvent) for runtime hooks:
+    /// WaveManager, pooling, arena restart. Subscribed once and survives reuse.
+    /// </summary>
     public event Action Died;
 
-    // Evento C# SOLO-danno (non scatta su Heal, a differenza di onDamaged che fa
-    // anche da "health changed" per la HUD). Usato dal duello finale per spawnare i
-    // pickup di vita a ogni colpo a segno senza innescare un loop col Heal.
+    /// <summary>
+    /// Damage-ONLY C# event (does not fire on Heal, unlike onDamaged which doubles as a
+    /// "health changed" signal for the HUD). Used by the final duel to spawn health
+    /// pickups on every landed hit without triggering a loop with Heal.
+    /// </summary>
     public event Action<DamageInfo> Damaged;
 
     public float CurrentHealth { get; private set; }
@@ -38,14 +49,16 @@ public class Health : MonoBehaviour, IDamageable
     private IDamageFilter[] _filters;
     private IDamageReaction[] _reactions;
 
-    // Regolatori runtime (default disattivi → nessun impatto su Player/nemici/
-    // statua). Usati dal duello finale: floor = vita minima per fase (Boss non
-    // sotto il 50% in Fase 1); cap = danno massimo per colpo (1 mentre Jammo
-    // trasporta i pezzi).
-    private float _damageFloor = 0f;        // vita minima assoluta
-    private float _maxDamagePerHit = 0f;    // 0 = nessun cap
+    // Runtime regulators (disabled by default → no impact on Player/enemies/statue).
+    // Used by the final duel: floor = minimum health per phase (Boss never drops
+    // below 50% in Phase 1); cap = maximum damage per hit (1 while Jammo carries pieces).
+    private float _damageFloor = 0f;        // absolute minimum health
+    private float _maxDamagePerHit = 0f;    // 0 = no cap
 
+    /// <summary>Sets the absolute minimum health this entity cannot drop below.</summary>
     public void SetDamageFloor(float minHealth) => _damageFloor = Mathf.Clamp(minHealth, 0f, maxHealth);
+
+    /// <summary>Caps the damage applied per single hit (0 = uncapped).</summary>
     public void SetMaxDamagePerHit(float cap) => _maxDamagePerHit = Mathf.Max(0f, cap);
 
     void Awake()
@@ -55,6 +68,10 @@ public class Health : MonoBehaviour, IDamageable
         _reactions = GetComponents<IDamageReaction>();
     }
 
+    /// <summary>
+    /// Applies damage through the full pipeline: invulnerability window, filter vetoes,
+    /// damage cap/floor, reaction callbacks, then HUD/damage/death events.
+    /// </summary>
     public void TakeDamage(DamageInfo info)
     {
         if (IsDead) return;
@@ -87,7 +104,7 @@ public class Health : MonoBehaviour, IDamageable
         }
     }
 
-    // Riporta in vita l'entità (pooling nemici / restart arena).
+    /// <summary>Restores the entity to full health and clears the dead flag (enemy pooling / arena restart).</summary>
     public void ResetHealth()
     {
         CurrentHealth = maxHealth;
@@ -97,9 +114,11 @@ public class Health : MonoBehaviour, IDamageable
         _maxDamagePerHit = 0f;
     }
 
-    // Pickup di vita / regen. Niente revive: se morto, non guarisce (il revive
-    // arriverà col restart arena, sotto-progetto #6). onDamaged fa anche da
-    // "health changed" per la HUD: l'evento gira con la nuova vita normalizzata.
+    /// <summary>
+    /// Health pickup / regen. No revive: a dead entity does not heal (revive happens on
+    /// arena restart). onDamaged doubles as a "health changed" signal for the HUD, so it
+    /// fires here with the new normalized health.
+    /// </summary>
     public void Heal(float amount)
     {
         if (IsDead || amount <= 0f) return;

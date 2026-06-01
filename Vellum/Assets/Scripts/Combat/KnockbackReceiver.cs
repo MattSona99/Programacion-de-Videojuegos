@@ -1,23 +1,26 @@
 using System.Collections;
 using UnityEngine;
 
-// Va SOLO sui nemici (mai sul Player): quando l'entità subisce danno viene
-// spinta indietro con un arco stile Minecraft (scatto indietro + saltello su,
-// poi ricaduta e atterraggio alla quota di partenza o sul terreno reale).
+/// <summary>
+/// Goes ONLY on enemies (never on the Player): as an <see cref="IDamageReaction"/>,
+/// when the entity takes damage it is pushed back along a Minecraft-style arc
+/// (backward dash + small hop, then fall and land at the start height or on real ground).
+/// </summary>
 public class KnockbackReceiver : MonoBehaviour, IDamageReaction
 {
     [SerializeField] private float horizontalSpeed = 6f;
     [SerializeField] private float upwardSpeed = 4.5f;
     [SerializeField] private float knockbackGravity = -22f;
-    [Tooltip("Safety: fine forzata se non atterra (terreno non piano).")]
+    [Tooltip("Safety: force the end if it never lands (uneven ground).")]
     [SerializeField] private float maxAirTime = 1.5f;
-    [Tooltip("Tempo minimo tra due knockback: evita che click ravvicinati concatenino archi e spingano il nemico lontanissimo.")]
+    [Tooltip("Minimum time between two knockbacks: prevents rapid clicks from chaining arcs and shoving the enemy very far away.")]
     [SerializeField] private float knockbackCooldown = 0.35f;
 
     private CharacterController _controller;
     private Coroutine _currentKnockback;
     private float _lastKnockbackEnd = float.NegativeInfinity;
 
+    /// <summary>True while a knockback arc is currently playing.</summary>
     public bool IsKnockbackActive => _currentKnockback != null;
 
     void Awake()
@@ -35,6 +38,7 @@ public class KnockbackReceiver : MonoBehaviour, IDamageReaction
         _currentKnockback = null;
     }
 
+    /// <summary>Immediately stops any active knockback arc.</summary>
     public void CancelKnockback()
     {
         if (_currentKnockback != null)
@@ -44,6 +48,7 @@ public class KnockbackReceiver : MonoBehaviour, IDamageReaction
         }
     }
 
+    /// <summary>Starts a knockback arc away from the damage source (respecting the cooldown).</summary>
     public void OnDamaged(DamageInfo info)
     {
         if (_currentKnockback != null) return;
@@ -57,6 +62,7 @@ public class KnockbackReceiver : MonoBehaviour, IDamageReaction
         _currentKnockback = StartCoroutine(KnockbackArcRoutine(dir));
     }
 
+    /// <summary>Integrates the backward+upward arc each frame until landing or <see cref="maxAirTime"/>.</summary>
     private IEnumerator KnockbackArcRoutine(Vector3 horizontalDir)
     {
         float vY = upwardSpeed;
@@ -74,9 +80,9 @@ public class KnockbackReceiver : MonoBehaviour, IDamageReaction
 
             elapsed += dt;
 
-            // ATTERRAGGIO CORRETTO: 
-            // isGrounded è nativo del CharacterController e capisce le vere collisioni.
-            // Lo controlliamo solo quando vY < 0 (cioè quando il nemico è in fase di ricaduta dall'arco).
+            // Correct landing detection:
+            // isGrounded is native to the CharacterController and understands real collisions.
+            // We only check it while vY < 0 (i.e. when the enemy is falling back down from the arc).
             if (vY < 0f && _controller.isGrounded)
             {
                 break;
