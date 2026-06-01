@@ -2,33 +2,35 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
-// Modello 2. La statua grande (scala 10) è il Jammo riggato vero: tutte le parti
-// attive, di partenza col materiale fantasma trasparente. "Rivelare" una parte
-// = swap di sharedMaterial ghost -> solido su quel renderer. Nessuna mesh
-// orfana, nessun allineamento da calcolare: la mesh riggata è già al suo posto.
+/// <summary>
+/// The big statue (scale 10) is the actual rigged Jammo: all parts active, starting with the
+/// transparent ghost material. "Revealing" a part = swapping that renderer's sharedMaterial from
+/// ghost to solid. No orphan mesh, no alignment to compute: the rigged mesh is already in place.
+/// </summary>
 public class StatueRig : MonoBehaviour
 {
+    /// <summary>One assemblable part of the statue: its renderer, an eyes-material flag, and filled state.</summary>
     [System.Serializable]
     public class Slot
     {
-        [Tooltip("Renderer della parte della statua grande (riggata). Parte col materiale fantasma, diventa solido a riempimento.")]
+        [Tooltip("Renderer of the big (rigged) statue part. Starts with the ghost material, becomes solid when filled.")]
         public Renderer bigStatuePart;
 
-        [Tooltip("Spuntare per i renderer degli occhi (es. head_eyes_low). Il rig userà 'Solid Material Eyes' invece del 'Solid Material' globale.")]
+        [Tooltip("Tick for the eye renderers (e.g. head_eyes_low). The rig will use 'Solid Material Eyes' instead of the global 'Solid Material'.")]
         public bool useEyesMaterial;
 
         [HideInInspector] public bool filled;
     }
 
-    [Header("Parti della statua grande")]
+    [Header("Big statue parts")]
     [SerializeField] private Slot[] slots;
 
-    [Header("Materiali")]
-    [Tooltip("Contorno trasparente iniziale (M_StatueGhost).")]
+    [Header("Materials")]
+    [Tooltip("Initial transparent outline (M_StatueGhost).")]
     [SerializeField] private Material ghostMaterial;
-    [Tooltip("Materiale solido di default per il corpo della statua (m_jammo_metal). Usato per tutti gli slot non flaggati 'useEyesMaterial'.")]
+    [Tooltip("Default solid material for the statue body (m_jammo_metal). Used for all slots not flagged 'useEyesMaterial'.")]
     [SerializeField] private Material solidMaterial;
-    [Tooltip("Materiale degli occhi (m_jammo_eyes). Usato per gli slot con 'Use Eyes Material' = true (es. head_eyes_low).")]
+    [Tooltip("Eyes material (m_jammo_eyes). Used for slots with 'Use Eyes Material' = true (e.g. head_eyes_low).")]
     [SerializeField] private Material solidMaterialEyes;
 
     [Header("Eventi")]
@@ -56,7 +58,7 @@ public class StatueRig : MonoBehaviour
         _totalSlots = _free.Count;
     }
 
-    // Prende a caso uno slot libero e lo marca occupato. -1 se non ce ne sono.
+    /// <summary>Picks a random free slot and marks it taken. Returns -1 if none are free.</summary>
     public int TakeRandomUnfilledSlot()
     {
         if (_free.Count == 0) return -1;
@@ -64,7 +66,7 @@ public class StatueRig : MonoBehaviour
         int listIdx = Random.Range(0, _free.Count);
         int slotIdx = _free[listIdx];
 
-        // swap-last: rimozione O(1), l'ordine non conta (scelta random).
+        // swap-last: O(1) removal, order doesn't matter (random choice).
         _free[listIdx] = _free[_free.Count - 1];
         _free.RemoveAt(_free.Count - 1);
 
@@ -72,8 +74,7 @@ public class StatueRig : MonoBehaviour
         return slotIdx;
     }
 
-    // Nome della parte di quello slot: chiave di correlazione col JammoPartSet
-    // del prefab scala-1 (stesso GameObject.name).
+    /// <summary>Name of that slot's part: the correlation key with the scale-1 prefab's JammoPartSet (same GameObject.name).</summary>
     public string PartNameOf(int index)
     {
         if (index < 0 || index >= slots.Length || slots[index] == null || slots[index].bigStatuePart == null)
@@ -81,7 +82,7 @@ public class StatueRig : MonoBehaviour
         return slots[index].bigStatuePart.gameObject.name;
     }
 
-    // Posizionamento avvenuto: la parte diventa solida.
+    /// <summary>Placement done: the part becomes solid; fires reveal/complete events.</summary>
     public void OnSlotFilled(int index)
     {
         if (index < 0 || index >= slots.Length || slots[index] == null) return;
@@ -96,13 +97,15 @@ public class StatueRig : MonoBehaviour
         if (_free.Count == 0) onStatueComplete.Invoke();
     }
 
-    // Pezzo perso (Jammo colpito durante il trasporto): lo slot torna libero e
-    // resta fantasma (OnSlotFilled non è stato chiamato → nessuno swap a solido).
-    // La statua non progredisce: quel pezzo va riguadagnato con un altro kill.
+    /// <summary>
+    /// Piece lost (Jammo hit while carrying): the slot goes free again and stays ghost
+    /// (OnSlotFilled was never called → no swap to solid). The statue doesn't progress: that
+    /// piece must be re-earned with another kill.
+    /// </summary>
     public void ReturnSlot(int index)
     {
         if (index < 0 || index >= slots.Length || slots[index] == null) return;
-        if (!slots[index].filled) return; // già libero
+        if (!slots[index].filled) return; // already free
         slots[index].filled = false;
         _free.Add(index);
     }

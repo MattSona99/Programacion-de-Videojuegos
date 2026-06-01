@@ -3,66 +3,70 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
+/// <summary>UnityEvent carrying a wave index.</summary>
 [System.Serializable]
 public class WaveIndexEvent : UnityEvent<int> { }
 
-// Motore delle ondate di Act_02. Guidato dall'esterno: l'orchestratore-regia
-// (dialoghi/camera/pause del sotto-progetto #6) chiamerà StartNextWave() dopo i
-// suoi beat. Il #5 si aggancia a onWaveCleared per il drop del pezzo / Jammo.
+/// <summary>
+/// Wave engine for Act_02. Externally driven: the director (dialogues/camera/pauses) calls
+/// StartNextWave() after its beats. The assembly director hooks onWaveCleared / EnemyKilled for
+/// the piece drop / Jammo logic. Pooled enemies, separated spawns, and optional looping/timeout.
+/// </summary>
 public class WaveManager : MonoBehaviour
 {
+    /// <summary>Configuration of a single wave: spawn wall, enemy prefab, count, and spawn distribution.</summary>
     [System.Serializable]
     public class Wave
     {
-        [Tooltip("Transform della parete da cui spawna questa ondata (orientato verso l'arena).")]
+        [Tooltip("Transform of the wall this wave spawns from (oriented toward the arena).")]
         public Transform spawnWall;
         public GameObject enemyPrefab;
         public int count = 5;
-        [Tooltip("Secondi tra uno spawn e l'altro all'interno della wave.")]
+        [Tooltip("Seconds between one spawn and the next within the wave.")]
         public float spawnInterval = 0.5f;
-        [Tooltip("Dispersione laterale lungo la parete (asse right del Transform).")]
+        [Tooltip("Lateral spread along the wall (Transform's right axis).")]
         public float spawnSpread = 6f;
-        [Tooltip("Profondità minima di spawn verso l'arena: tiene i nemici staccati dalla parete, mai a filo del muro.")]
+        [Tooltip("Minimum spawn depth toward the arena: keeps enemies off the wall, never flush against it.")]
         public float spawnMinDepth = 2f;
-        [Tooltip("Profondità di spawn verso l'arena (asse forward del Transform).")]
+        [Tooltip("Spawn depth toward the arena (Transform's forward axis).")]
         public float spawnDepth = 4f;
     }
 
-    [Header("Ondate (una parete per wave)")]
+    [Header("Waves (one wall per wave)")]
     [SerializeField] private Wave[] waves;
 
-    [Header("Distribuzione spawn")]
-    [Tooltip("Distanza minima tra due nemici della stessa wave (anti-overlap).")]
+    [Header("Spawn distribution")]
+    [Tooltip("Minimum distance between two enemies of the same wave (anti-overlap).")]
     [SerializeField] private float minSpawnSeparation = 1.5f;
-    [Tooltip("Tentativi di ricollocazione prima di accettare comunque la posizione.")]
+    [Tooltip("Re-placement attempts before accepting the position anyway.")]
     [SerializeField] private int spawnPlacementTries = 10;
 
     [Header("Pooling")]
-    [Tooltip("Secondi prima di rimettere il cadavere nel pool (tempo per l'anim di morte).")]
+    [Tooltip("Seconds before returning the corpse to the pool (time for the death animation).")]
     [SerializeField] private float corpseDelay = 1.5f;
 
-    [Header("Drop salute")]
-    [Tooltip("Prefab di HealthPickup (cura il Player) spawnato alla morte di un nemico. Lascia vuoto per disabilitare i drop.")]
+    [Header("Health drops")]
+    [Tooltip("HealthPickup prefab (heals the Player) spawned when an enemy dies. Leave empty to disable drops.")]
     [SerializeField] private GameObject healthPickupPrefab;
-    [Tooltip("Prefab di HealthPickup configurato su Jammo (+25 a Jammo, colore diverso). Stessa probabilità di spawn del pickup del Player. Lascia vuoto per disabilitare.")]
+    [Tooltip("HealthPickup prefab configured for Jammo (+25 to Jammo, different color). Same spawn chance as the Player pickup. Leave empty to disable.")]
     [SerializeField] private GameObject jammoHealthPickupPrefab;
-    [Tooltip("Probabilità 0..1 che un nemico ucciso droppi UN pickup (poi se ne sceglie il tipo: Player o Jammo).")]
+    [Tooltip("Probability 0..1 that a killed enemy drops ONE pickup (then its type is chosen: Player or Jammo).")]
     [SerializeField, Range(0f, 1f)] private float healthDropChance = 0.25f;
-    [Tooltip("Quando avviene un drop e sono assegnati entrambi i prefab, probabilità 0..1 che sia il pickup di JAMMO (il resto è il pickup del Player). 0.5 = 50/50.")]
+    [Tooltip("When a drop happens and both prefabs are assigned, probability 0..1 that it's the JAMMO pickup (the rest is the Player pickup). 0.5 = 50/50.")]
     [SerializeField, Range(0f, 1f)] private float jammoDropShare = 0.5f;
-    [Tooltip("Altezza (Y) costante a cui spawna il pickup, indipendentemente dalla posa del cadavere. Evita drop dentro al pavimento quando le anim di morte abbassano il nemico.")]
+    [Tooltip("Constant Y height the pickup spawns at, regardless of the corpse's pose. Avoids drops inside the floor when death anims lower the enemy.")]
     [SerializeField] private float healthDropHeightY = 1f;
 
-    [Header("Loop ondate")]
-    [Tooltip("Le wave si ripetono in loop (indice % numero wave). L'arena finisce quando la statua è completa, non per numero di wave.")]
+    [Header("Wave loop")]
+    [Tooltip("Waves repeat in a loop (index % wave count). The arena ends when the statue is complete, not by wave count.")]
     [SerializeField] private bool loopWaves = true;
-    [Tooltip("Avvia la prima wave da sé all'avvio (insieme a Jammo).")]
+    [Tooltip("Start the first wave by itself on Play (together with Jammo).")]
     [SerializeField] private bool startOnPlay = true;
-    [Tooltip("Auto-avanza alla wave dopo (oltre al loop). Lascia OFF se guida un orchestratore esterno e loop OFF.")]
+    [Tooltip("Auto-advance to the next wave (besides looping). Leave OFF if an external orchestrator drives it and loop is OFF.")]
     [SerializeField] private bool autoAdvance = false;
-    [Tooltip("Pausa tra una wave ripulita e la successiva.")]
+    [Tooltip("Pause between one cleared wave and the next.")]
     [SerializeField] private float delayBetweenWaves = 2f;
-    [Tooltip("Rete di sicurezza: se una wave non viene ripulita entro N secondi, i nemici rimasti vengono rimessi nel pool e la wave si chiude (anti-softlock). 0 = disattivata.")]
+    [Tooltip("Safety net: if a wave isn't cleared within N seconds, the remaining enemies are returned to the pool and the wave closes (anti-softlock). 0 = disabled.")]
     [SerializeField] private float maxWaveDuration = 0f;
 
     [Header("Eventi")]
@@ -88,8 +92,7 @@ public class WaveManager : MonoBehaviour
     public bool WaveActive => _waveActive;
     public bool AllWavesDone => _ended || (!loopWaves && _currentWaveIndex >= waves.Length - 1 && !_waveActive);
 
-    // Ogni nemico ucciso (l'unico modo per cui un nemico muore): il director
-    // della statua si aggancia qui per accodare un drop.
+    /// <summary>Fired on every killed enemy: the statue director hooks here to queue a drop.</summary>
     public event System.Action EnemyKilled;
 
     void Start()
@@ -97,8 +100,7 @@ public class WaveManager : MonoBehaviour
         if (startOnPlay) StartNextWave();
     }
 
-    // Avvia la prossima wave. Una alla volta (gate _waveActive). In loop
-    // l'indice gira su % waves.Length; si ferma solo a fine arena (_ended).
+    /// <summary>Starts the next wave. One at a time (_waveActive gate). When looping, the index wraps on % waves.Length; only stops at arena end (_ended).</summary>
     public void StartNextWave()
     {
         if (_waveActive || _ended || waves == null || waves.Length == 0) return;
@@ -115,7 +117,7 @@ public class WaveManager : MonoBehaviour
         StartCoroutine(SpawnWaveRoutine(waves[next], next));
     }
 
-    // Chiamato dal director quando la statua è completa: stop definitivo.
+    /// <summary>Called by the director when the statue is complete: definitive stop.</summary>
     public void StopAndEnd()
     {
         if (_ended) return;
@@ -141,7 +143,7 @@ public class WaveManager : MonoBehaviour
 
         if (wave.enemyPrefab == null || wave.spawnWall == null)
         {
-            Debug.LogWarning($"[WaveManager] Wave {index}: enemyPrefab o spawnWall mancante.");
+            Debug.LogWarning($"[WaveManager] Wave {index}: enemyPrefab or spawnWall missing.");
             _spawning = false;
             _waveActive = false;
             yield break;
@@ -183,13 +185,12 @@ public class WaveManager : MonoBehaviour
 
         _spawning = false;
 
-        // Se il Player ha già ripulito tutto durante lo spawn.
+        // If the Player already cleared everything during the spawn.
         if (_aliveCount <= 0 && _waveActive)
             WaveCleared();
     }
 
-    // Posizione casuale ampia lungo (right) e verso l'arena (forward), tenuta
-    // ad almeno minSpawnSeparation dai nemici già piazzati in questa wave.
+    /// <summary>Random position spread along (right) and toward the arena (forward), kept at least minSpawnSeparation from already-placed enemies of this wave.</summary>
     private Vector3 PickSpawnPosition(Wave wave)
     {
         Vector3 pos = Vector3.zero;
@@ -222,14 +223,14 @@ public class WaveManager : MonoBehaviour
         _aliveEnemies.Remove(enemy);
         EnemyKilled?.Invoke();
 
-        // Un solo tiro: se va a segno, si droppa UN pickup e se ne sceglie il tipo.
+        // A single roll: if it succeeds, ONE pickup is dropped and its type is chosen.
         if (Random.value < healthDropChance)
         {
             GameObject prefab = ChooseDropPrefab();
             if (prefab != null)
             {
-                // Y fissa: le anim di morte di alcuni nemici li portano sotto al
-                // pavimento e il pickup spawnerebbe interrato.
+                // Fixed Y: some enemies' death anims take them under the floor and the
+                // pickup would spawn buried.
                 Vector3 dropPos = enemy.transform.position;
                 dropPos.y = healthDropHeightY;
                 SpawnHealthDrop(prefab, dropPos);
@@ -242,8 +243,7 @@ public class WaveManager : MonoBehaviour
             WaveCleared();
     }
 
-    // Sceglie il tipo del singolo drop: se sono assegnati entrambi i prefab,
-    // tira a sorte (jammoDropShare); altrimenti usa l'unico disponibile.
+    /// <summary>Chooses the single drop's type: if both prefabs are assigned, rolls (jammoDropShare); otherwise uses the only one available.</summary>
     private GameObject ChooseDropPrefab()
     {
         bool hasPlayer = healthPickupPrefab != null;
@@ -252,11 +252,10 @@ public class WaveManager : MonoBehaviour
         if (hasPlayer && hasJammo)
             return Random.value < jammoDropShare ? jammoHealthPickupPrefab : healthPickupPrefab;
         if (hasJammo) return jammoHealthPickupPrefab;
-        return healthPickupPrefab; // null se nemmeno questo è assegnato
+        return healthPickupPrefab; // null if this one isn't assigned either
     }
 
-    // Pool lazy per prefab pickup (uno per tipo: Player / Jammo). Il pickup si
-    // auto-rilascia al suo pool tramite la callback Configure (HealthPickup).
+    /// <summary>Lazy pool per pickup prefab (one per type: Player / Jammo). The pickup auto-releases to its pool via the Configure callback (HealthPickup).</summary>
     private void SpawnHealthDrop(GameObject prefab, Vector3 pos)
     {
         if (!_pickupPools.TryGetValue(prefab, out SimplePool pool))
@@ -270,8 +269,7 @@ public class WaveManager : MonoBehaviour
             pickup.Configure(() => pool.Release(drop));
     }
 
-    // Rete di sicurezza anti-softlock: la wave non si è chiusa in tempo (es. un
-    // nemico irraggiungibile). Rimette i superstiti nel pool e chiude la wave.
+    /// <summary>Anti-softlock safety net: the wave didn't close in time (e.g. an unreachable enemy). Returns the survivors to the pool and closes the wave.</summary>
     private IEnumerator WaveTimeoutRoutine()
     {
         yield return new WaitForSeconds(maxWaveDuration);
@@ -281,11 +279,11 @@ public class WaveManager : MonoBehaviour
         {
             GameObject e = _aliveEnemies[i];
             if (e != null && _ownerPool.TryGetValue(e, out SimplePool pool))
-                pool.Release(e); // verrà resettato al prossimo spawn
+                pool.Release(e); // will be reset on the next spawn
         }
         _aliveEnemies.Clear();
         _aliveCount = 0;
-        Debug.LogWarning("[WaveManager] Wave non ripulita entro maxWaveDuration: chiusura forzata (anti-softlock).", this);
+        Debug.LogWarning("[WaveManager] Wave not cleared within maxWaveDuration: forced close (anti-softlock).", this);
         WaveCleared();
     }
 
@@ -307,11 +305,11 @@ public class WaveManager : MonoBehaviour
         if (lastWave && !loopWaves)
         {
             onAllWavesCleared.Invoke();
-            if (autoAdvance) StartCoroutine(AutoAdvanceRoutine()); // (no-op: StartNextWave si ferma)
+            if (autoAdvance) StartCoroutine(AutoAdvanceRoutine()); // (no-op: StartNextWave stops)
             return;
         }
 
-        // Loop / auto-advance: la prossima wave parte da sé dopo la pausa.
+        // Loop / auto-advance: the next wave starts by itself after the pause.
         if (loopWaves || autoAdvance) StartCoroutine(AutoAdvanceRoutine());
     }
 

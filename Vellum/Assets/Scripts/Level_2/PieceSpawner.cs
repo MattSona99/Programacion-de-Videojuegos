@@ -1,19 +1,21 @@
 using UnityEngine;
 
-// Modello 2. Il "pezzo" scala-1 è un'istanza INTERA del Jammo riggato (rig
-// completo, così la mesh skinnata rende), di cui si mostra una sola parte via
-// JammoPartSet. Pooled: niente Destroy (CLAUDE.md §4.3).
+/// <summary>
+/// Spawns the carried "pieces" of Act 2. Each scale-1 "piece" is a WHOLE instance of the rigged
+/// Jammo (full rig, so the skinned mesh renders), with only one part shown via JammoPartSet.
+/// Pooled: no Destroy (CLAUDE.md §4.3).
+/// </summary>
 public class PieceSpawner : MonoBehaviour
 {
-    [Header("Sorgente pezzo")]
-    [Tooltip("Prefab Variant di Jammo_Player a scala 1 con JammoPartSet.")]
+    [Header("Piece source")]
+    [Tooltip("Variant prefab of Jammo_Player at scale 1 with JammoPartSet.")]
     [SerializeField] private GameObject scale1JammoPrefab;
 
     [Header("Spawn")]
-    [Tooltip("Punti candidati nell'arena (sul pavimento): ne viene scelto uno a caso. La Y del punto è rispettata.")]
+    [Tooltip("Candidate points in the arena (on the floor): one is chosen at random. The point's Y is respected.")]
     [SerializeField] private Transform[] spawnPoints;
 
-    [Tooltip("Istanze pre-allocate per evitare hitch al primo spawn.")]
+    [Tooltip("Pre-allocated instances to avoid a hitch on the first spawn.")]
     [SerializeField] private int poolSize = 2;
 
     private SimplePool _pool;
@@ -32,6 +34,7 @@ public class PieceSpawner : MonoBehaviour
         }
     }
 
+    /// <summary>Spawns a pooled piece at a random spawn point, showing only <paramref name="partName"/>.</summary>
     public GameObject SpawnPiece(string partName)
     {
         if (scale1JammoPrefab == null || string.IsNullOrEmpty(partName)) return null;
@@ -41,15 +44,16 @@ public class PieceSpawner : MonoBehaviour
             : transform.position;
 
         GameObject go = _pool.Get(pos, Quaternion.identity);
-        go.transform.localScale = Vector3.one; // ReleasePiece lo rimpicciolisce a 0
+        go.transform.localScale = Vector3.one; // the carrier shrinks it back to 0 on release
 
         if (go.TryGetComponent(out JammoPartSet partSet))
             partSet.ShowOnly(partName);
         else
-            Debug.LogWarning("[PieceSpawner] Il prefab scala-1 non ha JammoPartSet.", this);
+            Debug.LogWarning("[PieceSpawner] The scale-1 prefab has no JammoPartSet.", this);
 
         return go;
     }
 
+    /// <summary>Returns a piece to the pool.</summary>
     public void Release(GameObject piece) => _pool.Release(piece);
 }

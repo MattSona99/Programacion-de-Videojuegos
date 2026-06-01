@@ -1,16 +1,17 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Sta sul prefab Jammo scala-1 usato come "pezzo" trasportato. Tiene il rig
-// intero (la mesh skinnata rende solo se lo scheletro Mixamo è presente):
-// ShowOnly mostra una sola parte e congela la posa, così visivamente è una
-// singola parte solida fluttuante invece di un Jammo intero.
+/// <summary>
+/// Sits on the scale-1 Jammo prefab used as the carried "piece". It holds the full rig (the
+/// skinned mesh only renders if the Mixamo skeleton is present): ShowOnly displays a single
+/// part and freezes the pose, so visually it's a single solid floating part instead of a whole Jammo.
+/// </summary>
 public class JammoPartSet : MonoBehaviour
 {
-    [Header("Renderer delle parti (nome = chiave di correlazione con StatueRig)")]
+    [Header("Part renderers (name = correlation key with StatueRig)")]
     [SerializeField] private Renderer[] parts;
 
-    [Tooltip("Animator del rig. Se vuoto, GetComponentInChildren in Awake. Viene disabilitato per congelare la bind-pose.")]
+    [Tooltip("Rig Animator. If empty, GetComponentInChildren in Awake. Disabled to freeze the bind pose.")]
     [SerializeField] private Animator animator;
 
     private readonly Dictionary<string, Renderer> _byName = new Dictionary<string, Renderer>();
@@ -26,7 +27,7 @@ public class JammoPartSet : MonoBehaviour
         }
     }
 
-    // Mostra solo la parte richiesta, nasconde le altre, congela la posa.
+    /// <summary>Shows only the requested part, hides the others, and freezes the pose.</summary>
     public void ShowOnly(string partName)
     {
         if (animator != null) animator.enabled = false;
@@ -41,6 +42,6 @@ public class JammoPartSet : MonoBehaviour
         }
 
         if (!found)
-            Debug.LogWarning($"[JammoPartSet] Parte '{partName}' non trovata sul prefab scala-1.", this);
+            Debug.LogWarning($"[JammoPartSet] Part '{partName}' not found on the scale-1 prefab.", this);
     }
 }

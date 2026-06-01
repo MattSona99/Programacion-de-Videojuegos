@@ -3,13 +3,18 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
+/// <summary>
+/// Plays a "reverse vortex" intro on the Act_02 scene: starts from the extreme black-hole values
+/// (lens distortion + desaturation) and eases them back to normal, mirroring the DoorPortal exit
+/// effect of Act 1.
+/// </summary>
 public class VortexEnterTransition : MonoBehaviour
 {
-    [Header("Effetto Entrata (Vortice Inverso)")]
-    [Tooltip("Trascina qui il Global Volume della scena Act_02")]
+    [Header("Entry effect (reverse vortex)")]
+    [Tooltip("Drag the Act_02 scene's Global Volume here")]
     public Volume globalVolume;
-    
-    [Tooltip("Quanto dura l'apertura? (in secondi)")]
+
+    [Tooltip("How long the opening lasts (in seconds)")]
     public float transitionDuration = 4f;
 
     private LensDistortion _lensDistortion;
@@ -17,31 +22,32 @@ public class VortexEnterTransition : MonoBehaviour
 
     private void Start()
     {
-        // 1. All'avvio della scena, cerchiamo i filtri
+        // 1. On scene start, grab the overrides
         if (globalVolume != null && globalVolume.profile != null)
         {
             globalVolume.profile.TryGet(out _lensDistortion);
             globalVolume.profile.TryGet(out _colorAdjustments);
 
-            // 2. Facciamo partire l'animazione di sblocco!
+            // 2. Start the un-distort animation!
             StartCoroutine(ReverseVortexRoutine());
         }
     }
 
+    /// <summary>Eases lens distortion and saturation from the black-hole values back to normal, then disables distortion.</summary>
     private IEnumerator ReverseVortexRoutine()
     {
         if (_lensDistortion != null) _lensDistortion.active = true;
         if (_colorAdjustments != null) _colorAdjustments.active = true;
 
-        // Partiamo dai valori estremi (il buco nero)
+        // Start from the extreme values (the black hole)
         float startDistortion = -1f;
         float startScale = 0.01f;
         float startSaturation = -100f;
 
-        // Arriviamo ai valori normali (mondo reale)
+        // Arrive at the normal values (real world)
         float endDistortion = 0f;
         float endScale = 1f;
-        float endSaturation = 0f; // Assumendo che il colore base dell'arena sia 0
+        float endSaturation = 0f; // Assuming the arena's base color is 0
 
         float time = 0f;
 
@@ -50,8 +56,8 @@ public class VortexEnterTransition : MonoBehaviour
             time += Time.deltaTime;
             float t = time / transitionDuration;
 
-            // Curva "Ease Out": parte veloce e decelera dolcemente verso la fine
-            float curve = 1f - Mathf.Pow(1f - t, 3f); 
+            // "Ease Out" curve: starts fast and gently decelerates toward the end
+            float curve = 1f - Mathf.Pow(1f - t, 3f);
 
             if (_lensDistortion != null)
             {
@@ -67,18 +73,18 @@ public class VortexEnterTransition : MonoBehaviour
             yield return null;
         }
 
-        // Sicurezza finale: forziamo i valori a 0 precisi alla fine dell'animazione
+        // Final safety: force exact 0 values at the end of the animation
         if (_lensDistortion != null)
         {
             _lensDistortion.intensity.value = 0f;
             _lensDistortion.scale.value = 1f;
-            _lensDistortion.active = false; // Spegniamo la distorsione per risparmiare performance
+            _lensDistortion.active = false; // Disable distortion to save performance
         }
-        
+
         if (_colorAdjustments != null)
         {
             _colorAdjustments.saturation.value = 0f;
-            // Teniamo attivo ColorAdjustments se lo usi per l'estetica generale dell'arena
+            // Keep ColorAdjustments active if you use it for the arena's overall look
         }
     }
 }
