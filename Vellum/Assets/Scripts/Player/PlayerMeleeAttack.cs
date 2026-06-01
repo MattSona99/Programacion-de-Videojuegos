@@ -2,53 +2,62 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Sta sulla root del Player. PlayerCombat chiama BeginSwing() al click sinistro.
-// Rilevamento colpi guidato dall'input (NON da Animation Event): indipendente
-// da clip/Animator e identico per mesh maschile e femminile.
+/// <summary>
+/// Sits on the Player root. <see cref="PlayerCombat"/> calls BeginSwing() on left click.
+/// Hit detection is input-driven (NOT via Animation Event): independent of the clip/Animator
+/// and identical for the male and female meshes.
+/// </summary>
 public class PlayerMeleeAttack : MonoBehaviour
 {
-    [Header("Danno")]
+    [Header("Damage")]
     [SerializeField] private float attackDamage = 15f;
 
-    [Header("Tempi swing (secondi)")]
-    [Tooltip("Ritardo dal click prima che la hitbox diventi attiva (carica del colpo).")]
+    [Header("Swing timing (seconds)")]
+    [Tooltip("Delay from the click before the hitbox becomes active (attack wind-up).")]
     [SerializeField] private float windupTime = 0.15f;
-    [Tooltip("Durata in cui la hitbox resta attiva e può colpire.")]
+    [Tooltip("Duration the hitbox stays active and can hit.")]
     [SerializeField] private float activeTime = 0.15f;
 
-    [Header("Hitbox (relativa al Player)")]
+    [Header("Hitbox (relative to the Player)")]
     [SerializeField] private Vector3 hitboxHalfExtents = new Vector3(0.6f, 0.7f, 0.8f);
     [SerializeField] private float forwardOffset = 1.0f;
     [SerializeField] private float verticalOffset = 1.0f;
 
-    [Tooltip("Imposta sui layer dei nemici/statua. Lascia tutto se non usi layer dedicati.")]
+    [Tooltip("Set to the enemy/statue layers. Leave as Everything if you don't use dedicated layers.")]
     [SerializeField] private LayerMask hittableLayers = ~0;
 
     private readonly Collider[] _hits = new Collider[16];
     private readonly List<IDamageable> _damagedThisSwing = new List<IDamageable>(8);
     private Coroutine _swing;
 
-    // True durante windup+active di uno swing. Letto dal Boss (BossDuelAI) per la
-    // difesa reattiva: vede partire il colpo e può alzare la guardia in anticipo.
+    /// <summary>
+    /// True during a swing's wind-up + active window. Read by the Boss (BossDuelAI) for
+    /// reactive defense: it sees the swing start and can raise its guard in advance.
+    /// </summary>
     public bool IsSwinging { get; private set; }
 
-    // Chiamato da PlayerCombat al click sinistro. damageOverride > 0 lo usa al
-    // posto del default (utile in futuro per i colpi della combo).
+    /// <summary>
+    /// Called by PlayerCombat on left click. <paramref name="damageOverride"/> &gt; 0 is used
+    /// instead of the default (useful for per-hit combo damage).
+    /// </summary>
     public void BeginSwing(float damageOverride = 0f)
     {
         if (_swing != null) StopCoroutine(_swing);
         _swing = StartCoroutine(SwingRoutine(damageOverride > 0f ? damageOverride : attackDamage));
     }
 
-    // Annulla lo swing in corso (es. quando il Player alza lo scudo): evita che
-    // il colpo "in canna", il cui danno è su timer indipendente dall'animazione,
-    // parta comunque dopo la difesa.
+    /// <summary>
+    /// Cancels the in-progress swing (e.g. when the Player raises the shield): prevents the
+    /// "chambered" hit — whose damage is on an animation-independent timer — from still
+    /// landing after defending.
+    /// </summary>
     public void CancelSwing()
     {
         if (_swing != null) { StopCoroutine(_swing); _swing = null; }
         IsSwinging = false;
     }
 
+    /// <summary>Wind-up, then keeps the hitbox active for <see cref="activeTime"/>, applying hits each frame.</summary>
     private IEnumerator SwingRoutine(float dmg)
     {
         _damagedThisSwing.Clear();
@@ -68,6 +77,7 @@ public class PlayerMeleeAttack : MonoBehaviour
         _swing = null;
     }
 
+    /// <summary>Overlaps the forward hitbox and damages each unique <see cref="IDamageable"/> once per swing.</summary>
     private void ApplyHit(float dmg)
     {
         Vector3 center = transform.position
@@ -82,11 +92,11 @@ public class PlayerMeleeAttack : MonoBehaviour
         {
             Collider col = _hits[i];
             if (col == null) continue;
-            if (col.transform == transform || col.transform.IsChildOf(transform)) continue; // mai se stesso
+            if (col.transform == transform || col.transform.IsChildOf(transform)) continue; // never self
 
             IDamageable target = col.GetComponentInParent<IDamageable>();
             if (target == null) continue;
-            if (_damagedThisSwing.Contains(target)) continue; // un solo colpo per bersaglio per swing
+            if (_damagedThisSwing.Contains(target)) continue; // one hit per target per swing
 
             _damagedThisSwing.Add(target);
             target.TakeDamage(new DamageInfo(dmg, transform.position, gameObject));

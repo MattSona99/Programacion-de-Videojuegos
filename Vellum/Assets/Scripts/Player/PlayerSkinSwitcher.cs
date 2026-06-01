@@ -2,18 +2,24 @@ using System;
 using UnityEngine;
 using StarterAssets;
 
+/// <summary>
+/// Hot-swaps the Player's 3D model (male/female geometry) at runtime. After switching it
+/// rebinds the active Animator (ThirdPersonController + PlayerCombat) and raises
+/// <see cref="SkinChanged"/> so the final-boss mirror (EnemySkinMirror) can mirror it.
+/// </summary>
 public class PlayerSkinSwitcher : MonoBehaviour
 {
-    [Header("Look del Player")]
+    [Header("Player look")]
     public GameObject maleGeometry;
     public GameObject femaleGeometry;
 
-    // Vero = forma maschile attiva. Lo specchio del boss (EnemySkinMirror) legge
-    // questo e si pone sempre all'opposto.
+    /// <summary>True = male form active. The boss mirror (EnemySkinMirror) reads this and always takes the opposite.</summary>
     public bool IsMale { get; private set; } = true;
 
-    // Emesso a ogni cambio skin col valore corrente (true = maschile). Usato da
-    // EnemySkinMirror per rispecchiare il Player al sesso opposto.
+    /// <summary>
+    /// Raised on every skin change with the current value (true = male). Used by
+    /// EnemySkinMirror to mirror the Player to the opposite sex.
+    /// </summary>
     public event Action<bool> SkinChanged;
 
     private PlayerCombat _playerCombat;
@@ -30,22 +36,25 @@ public class PlayerSkinSwitcher : MonoBehaviour
         SwitchToMale();
     }
 
+    /// <summary>Switches to the male model.</summary>
     public void SwitchToMale() => Switch(true);
+
+    /// <summary>Switches to the female model.</summary>
     public void SwitchToFemale() => Switch(false);
 
     private void Switch(bool male)
     {
         IsMale = male;
 
-        // 1. Attiva/disattiva le geometrie
+        // 1. Enable/disable the geometries
         if (maleGeometry != null) maleGeometry.SetActive(male);
         if (femaleGeometry != null) femaleGeometry.SetActive(!male);
 
-        // 2. Notifica gli script che l'Animator attivo è cambiato
+        // 2. Notify scripts that the active Animator has changed
         if (_thirdPersonController != null) _thirdPersonController.RebindAnimator();
         if (_playerCombat != null) _playerCombat.RefreshAnimator();
 
-        // 3. Notifica chi rispecchia la skin (boss del livello finale)
+        // 3. Notify whoever mirrors the skin (final-level boss)
         SkinChanged?.Invoke(male);
     }
 }
