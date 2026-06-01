@@ -1,31 +1,33 @@
 using System;
 using UnityEngine;
 
-// Pickup di salute. Spawnato dal WaveManager alla morte di un nemico con
-// probabilità configurabile (vedi WaveManager.healthDropChance). Il prefab
-// visivo (mesh/sprite + Collider trigger) è preparato in Editor; lo script
-// è agnostico al look. Pool-friendly: SetActive(false) via callback al
-// proprietario (niente Destroy, CLAUDE.md §4.3).
+/// <summary>
+/// Health pickup. Spawned by the WaveManager when an enemy dies, with a configurable chance
+/// (see WaveManager.healthDropChance). The visual prefab (mesh/sprite + trigger Collider) is
+/// authored in the Editor; the script is look-agnostic. Pool-friendly: SetActive(false) via an
+/// owner callback (no Destroy, CLAUDE.md §4.3).
+/// </summary>
 [RequireComponent(typeof(Collider))]
 public class HealthPickup : MonoBehaviour
 {
-    // Chi viene curato alla raccolta. In entrambi i casi il pickup si raccoglie
-    // camminandoci sopra col Player; cambia solo a chi va la cura.
+    // Who gets healed on collection. In both cases the pickup is collected by the Player
+    // walking over it; only the recipient of the heal changes.
     private enum HealTarget { Player, Jammo }
 
     [Header("Pickup")]
-    [Tooltip("Player → cura chi lo raccoglie (il Player). Jammo → cura Jammo (kit di riparazione raccolto dal Player).")]
+    [Tooltip("Player → heals whoever collects it (the Player). Jammo → heals Jammo (repair kit collected by the Player).")]
     [SerializeField] private HealTarget healTarget = HealTarget.Player;
     [SerializeField] private float healAmount = 50f;
-    [Tooltip("Tag del Player. Il pickup si attiva solo al contatto con questo tag.")]
+    [Tooltip("Player tag. The pickup only triggers on contact with this tag.")]
     [SerializeField] private string playerTag = "Player";
 
     private Action _onCollected;
     private bool _consumed;
 
-    // Configurato dal WaveManager allo spawn dal pool: la callback rimette
-    // il pickup nel pool quando viene raccolto. Resetta anche il flag _consumed
-    // per il riuso.
+    /// <summary>
+    /// Configured by the WaveManager when spawned from the pool: the callback returns the
+    /// pickup to the pool when collected. Also resets the _consumed flag for reuse.
+    /// </summary>
     public void Configure(Action onCollected)
     {
         _onCollected = onCollected;
@@ -50,8 +52,8 @@ public class HealthPickup : MonoBehaviour
         if (healTarget == HealTarget.Player)
             return collector.GetComponentInParent<Health>();
 
-        // Jammo: la cura va a Jammo (registrato nel coordinator dei nemici),
-        // non al Player che fisicamente raccoglie il pickup.
+        // Jammo: the heal goes to Jammo (registered in the enemy coordinator),
+        // not to the Player who physically collects the pickup.
         var coord = EnemyTargetCoordinator.Instance;
         return coord != null ? coord.JammoHealth : null;
     }
