@@ -3,26 +3,27 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Barra di vita del Player. Si aggancia a Health.onDamaged dall'Inspector
-// (UnityEvent<float> → UpdateBar): l'evento gira con la vita normalizzata 0..1
-// sia sui danni sia sugli heal (vedi Health.Heal). Niente Singleton: c'è un
-// solo Player, le reference sono via Inspector.
+/// <summary>
+/// Player health bar. Hooks Health.onDamaged from the Inspector (UnityEvent&lt;float&gt; →
+/// UpdateBar): the event fires with the normalized health 0..1 on both damage and heals (see
+/// Health.Heal). No Singleton: there's a single Player, references are via the Inspector.
+/// </summary>
 public class PlayerHUD : MonoBehaviour
 {
-    [Header("Sorgente")]
-    [Tooltip("Health del Player. Usato per leggere lo stato iniziale e per il label numerico.")]
+    [Header("Source")]
+    [Tooltip("The Player's Health. Used to read the initial state and for the numeric label.")]
     [SerializeField] private Health playerHealth;
 
-    [Header("Visuale")]
-    [Tooltip("Image type=Filled, fillMethod=Horizontal: fillAmount segue la vita normalizzata.")]
+    [Header("Visuals")]
+    [Tooltip("Image type=Filled, fillMethod=Horizontal: fillAmount follows the normalized health.")]
     [SerializeField] private Image fillImage;
-    [Tooltip("Gradient colore in funzione della vita normalizzata. Esempio: rosso a 0, giallo a 0.5, verde a 1. Configurabile dall'Inspector.")]
+    [Tooltip("Color gradient as a function of normalized health. Example: red at 0, yellow at 0.5, green at 1. Configurable from the Inspector.")]
     [SerializeField] private Gradient fillGradient;
-    [Tooltip("Label opzionale 'X / MaxHealth'. Lascia vuoto per barra senza numeri.")]
+    [Tooltip("Optional 'X / MaxHealth' label. Leave empty for a bar without numbers.")]
     [SerializeField] private TMP_Text valueLabel;
 
-    [Header("Animazione")]
-    [Tooltip("Durata della transizione fluida tra il vecchio e il nuovo valore. 0 = istantaneo.")]
+    [Header("Animation")]
+    [Tooltip("Duration of the smooth transition between the old and new value. 0 = instant.")]
     [SerializeField] private float smoothDuration = 0.25f;
 
     private Coroutine _smoothRoutine;
@@ -37,7 +38,7 @@ public class PlayerHUD : MonoBehaviour
         }
     }
 
-    // Wirare da Inspector: Health.onDamaged (Float) → PlayerHUD.UpdateBar
+    /// <summary>Wire from Inspector: Health.onDamaged (Float) → PlayerHUD.UpdateBar. Smoothly animates the bar to the new normalized value.</summary>
     public void UpdateBar(float normalized)
     {
         normalized = Mathf.Clamp01(normalized);

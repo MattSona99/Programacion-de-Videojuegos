@@ -1,24 +1,25 @@
 using System.Collections;
 using UnityEngine;
 
-// Slide-from-bottom + fade per un elemento UI. Va sul GameObject root dell'UI
-// da rivelare (es. HUDPlayer, StatueProgressBar) insieme a un CanvasGroup.
-// Reveal() / Hide() sono pubblici e idempotenti: chiamabili dal regista di
-// scena (Act02Director). hiddenOnStart=true prepara lo stato "fuori schermo"
-// in Awake così la posa Editor coincide con la posa visibile finale.
+/// <summary>
+/// Slide-from-bottom + fade for a UI element. Goes on the root GameObject of the UI to reveal
+/// (e.g. HUDPlayer, StatueProgressBar) together with a CanvasGroup. Reveal() / Hide() are public
+/// and idempotent: callable by the scene director (Act02Director). hiddenOnStart=true prepares the
+/// "off-screen" state in Awake so the Editor pose matches the final visible pose.
+/// </summary>
 [RequireComponent(typeof(RectTransform))]
 public class HudReveal : MonoBehaviour
 {
     [Header("Refs")]
-    [Tooltip("Lasciare vuoto per usare il CanvasGroup su questo GameObject (se manca, l'alpha non viene animato).")]
+    [Tooltip("Leave empty to use the CanvasGroup on this GameObject (if missing, alpha is not animated).")]
     [SerializeField] private CanvasGroup canvasGroup;
 
-    [Header("Animazione")]
-    [Tooltip("Quanti pixel sotto la posa Editor parte/finisce l'elemento durante l'animazione.")]
+    [Header("Animation")]
+    [Tooltip("How many pixels below the Editor pose the element starts/ends during the animation.")]
     [SerializeField] private float slideDistance = 120f;
-    [Tooltip("Durata della transizione (sia Reveal che Hide).")]
+    [Tooltip("Transition duration (both Reveal and Hide).")]
     [SerializeField] private float duration = 0.6f;
-    [Tooltip("Se true, in Awake l'elemento viene messo in stato nascosto (alpha 0, offset sotto). Disattivare se la posa iniziale è già quella visibile e si rivela solo a runtime.")]
+    [Tooltip("If true, in Awake the element is set to the hidden state (alpha 0, offset below). Disable if the initial pose is already the visible one and it's only revealed at runtime.")]
     [SerializeField] private bool hiddenOnStart = true;
 
     private RectTransform _rect;
@@ -27,8 +28,7 @@ public class HudReveal : MonoBehaviour
     private Coroutine _routine;
     private bool _isVisible;
 
-    // Stato visibile (intento, settato subito in Reveal/Hide). Usato dal menu di
-    // pausa per ripristinare al resume solo le barre che erano visibili.
+    /// <summary>Visible state (intent, set immediately in Reveal/Hide). Used by the pause menu to restore only the bars that were visible on resume.</summary>
     public bool IsVisible => _isVisible;
 
     void Awake()
@@ -51,6 +51,7 @@ public class HudReveal : MonoBehaviour
         }
     }
 
+    /// <summary>Slides the element in and fades it to alpha 1.</summary>
     public void Reveal()
     {
         if (_isVisible && _routine == null) return;
@@ -58,6 +59,7 @@ public class HudReveal : MonoBehaviour
         Run(targetAlpha: 1f, targetPos: _shownPos);
     }
 
+    /// <summary>Slides the element out and fades it to alpha 0.</summary>
     public void Hide()
     {
         if (!_isVisible && _routine == null) return;
@@ -79,9 +81,9 @@ public class HudReveal : MonoBehaviour
 
         while (t < duration)
         {
-            // unscaledDeltaTime: l'Hide alla morte del Player gira con il gioco
-            // in pausa (timeScale=0). Reveal/Hide del prologo girano comunque a
-            // timeScale=1, dove scaled e unscaled coincidono.
+            // unscaledDeltaTime: the Hide on Player death runs with the game paused
+            // (timeScale=0). The prologue Reveal/Hide run at timeScale=1 anyway,
+            // where scaled and unscaled coincide.
             t += Time.unscaledDeltaTime;
             float k = Mathf.Clamp01(t / duration);
             float eased = k * k * (3f - 2f * k);
