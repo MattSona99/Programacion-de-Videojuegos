@@ -1,64 +1,63 @@
 using UnityEngine;
 
-// Scudo del boss del livello finale. È un IDamageFilter su Health con due
-// funzioni:
-//   1) BLOCCO FRONTALE quando il boss è in difesa (SetDefending), come
-//      FrontalShieldBlock per il Player: i colpi frontali del Player vengono
-//      annullati (è la "difesa" attiva guidata da BossDuelAI).
-//   2) CONTEGGIO colpi durante la raccolta (SetShedding): ogni 'hitsPerPiece'
-//      colpi del Player ANDATI A SEGNO (non bloccati) segnala al director di
-//      sbloccare un pezzo.
-//
-// Niente più invulnerabilità totale durante la raccolta: ora il boss è
-// colpibile (Health.SetMaxDamagePerHit(1) lato director → 1 HP/colpo). Resta un
-// 'blockAll' usato solo come sicurezza durante il flip del cielo.
-//
-// NB: tieni Health.invulnerabilityDuration = 0 sul boss, così ogni swing del
-// Player (un colpo per bersaglio per swing) viene contato.
+/// <summary>
+/// Final-level boss shield. An IDamageFilter on Health with two roles:
+///   1) FRONTAL BLOCK when the boss is defending (SetDefending), like FrontalShieldBlock for the
+///      Player: the Player's frontal hits are cancelled (the active "defense" driven by BossDuelAI).
+///   2) HIT COUNT during collection (SetShedding): every 'hitsPerPiece' of the Player's hits that
+///      LAND (not blocked) tells the director to unlock a piece.
+///
+/// No more total invulnerability during collection: the boss is now hittable
+/// (Health.SetMaxDamagePerHit(1) from the director → 1 HP/hit). A 'blockAll' remains, used only as
+/// safety during the sky flip.
+///
+/// NB: keep Health.invulnerabilityDuration = 0 on the boss so every Player swing (one hit per
+/// target per swing) is counted.
+/// </summary>
 [RequireComponent(typeof(Health))]
 public class BossShield : MonoBehaviour, IDamageFilter
 {
     [SerializeField] private MirrorDuelDirector director;
 
-    [Tooltip("Colpi del Player a segno per staccare un pezzo (≈ lunghezza combo).")]
+    [Tooltip("Player hits that land to shed a piece (≈ combo length).")]
     [SerializeField] private int hitsPerPiece = 3;
 
-    [Tooltip("Ampiezza totale del cono frontale entro cui la guardia blocca, in gradi.")]
+    [Tooltip("Total width of the frontal cone within which the guard blocks, in degrees.")]
     [SerializeField] private float blockAngle = 120f;
 
-    private bool _blockAll;     // sicurezza durante il flip cielo
-    private bool _defending;    // guardia alzata da BossDuelAI
-    private bool _shedding;     // fase di raccolta: conta i colpi → pezzi
+    private bool _blockAll;     // safety during the sky flip
+    private bool _defending;    // guard raised by BossDuelAI
+    private bool _shedding;     // collection phase: counts hits → pieces
     private int _hitCount;
 
+    /// <summary>True while the boss guard is raised.</summary>
     public bool IsDefending => _defending;
 
-    // Blocco totale temporaneo (es. durante il ribaltamento del cielo).
+    /// <summary>Temporary total block (e.g. during the sky flip).</summary>
     public void SetInvulnerable(bool value) => _blockAll = value;
 
-    // Guardia attiva: blocca i colpi frontali del Player. La guida BossDuelAI
-    // (fasi di difesa + difesa reattiva).
+    /// <summary>Active guard: blocks the Player's frontal hits. Driven by BossDuelAI (defense phases + reactive defense).</summary>
     public void SetDefending(bool value) => _defending = value;
 
-    // Conteggio colpi → pezzi attivo solo in raccolta. Resetta il contatore
-    // quando si (dis)attiva, così le fasi non si "ereditano" colpi parziali.
+    /// <summary>Enables hit→piece counting (only during collection). Resets the counter on (de)activation so phases don't inherit partial hits.</summary>
     public void SetShedding(bool value)
     {
         _shedding = value;
         _hitCount = 0;
     }
 
+    /// <summary>Filters incoming damage: blocks frontal hits while defending, and counts landed hits toward shedding a piece.</summary>
     public bool ShouldBlock(DamageInfo info)
     {
         if (_blockAll) return true;
 
         bool fromPlayer = info.source != null && info.source.CompareTag("Player");
 
-        // Difesa attiva: blocca i colpi frontali del Player (non contano, non
-        // tolgono vita). Spinge il Player a colpire quando la guardia è bassa.
+        // Active defense: blocks the Player's frontal hits (they don't count, don't deal
+        // damage). Pushes the Player to strike when the guard is down.
         if (_defending && fromPlayer && IsFrontal(info)) return true;
 
-        // Colpo andato a segno durante la raccolta: conta verso lo sblocco pezzo.
+        // Hit landed during collection: counts toward unlocking a piece.
         if (fromPlayer && _shedding)
         {
             _hitCount++;
@@ -69,14 +68,14 @@ public class BossShield : MonoBehaviour, IDamageFilter
             }
         }
 
-        return false; // Health applica il danno (cappato a 1 in raccolta, con floor di fase)
+        return false; // Health applies the damage (capped to 1 during collection, with the phase floor)
     }
 
     private bool IsFrontal(DamageInfo info)
     {
         Vector3 toSource = info.sourcePosition - transform.position;
         toSource.y = 0f;
-        if (toSource.sqrMagnitude < 0.0001f) return true; // sopra il boss: consideralo frontale
+        if (toSource.sqrMagnitude < 0.0001f) return true; // above the boss: treat as frontal
         return Vector3.Angle(transform.forward, toSource.normalized) <= blockAngle * 0.5f;
     }
 }

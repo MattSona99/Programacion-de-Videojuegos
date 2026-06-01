@@ -1,36 +1,37 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Spawner dei pickup di vita NEUTRI del duello finale. A ogni colpo a segno
-// (Player↔Boss) può comparire un pickup in un punto casuale dell'arena,
-// raccoglibile da entrambi. Si aggancia ai due Health via l'evento C# solo-danno
-// Health.Damaged (NON onDamaged, che scatta anche su Heal → eviterebbe il loop
-// spawn→cura→spawn). Pool-friendly (SimplePool). Tiene il registro dei pickup
-// attivi per la decisione fuzzy del boss (BossDuelAI).
+/// <summary>
+/// Spawner of the final duel's NEUTRAL health pickups. On every landed hit (Player↔Boss) a pickup
+/// may appear at a random arena point, collectible by both. Hooks both Health components via the
+/// damage-only C# event Health.Damaged (NOT onDamaged, which also fires on Heal → would create a
+/// spawn→heal→spawn loop). Pool-friendly (SimplePool). Keeps a registry of active pickups for the
+/// boss's fuzzy decision (BossDuelAI).
+/// </summary>
 public class DuelHealthSpawner : MonoBehaviour
 {
-    [Header("Contendenti")]
+    [Header("Contenders")]
     [SerializeField] private Health playerHealth;
     [SerializeField] private Health bossHealth;
 
     [Header("Pickup")]
-    [Tooltip("Prefab del DuelHealthPickup (Collider trigger + look in Editor).")]
+    [Tooltip("DuelHealthPickup prefab (trigger Collider + look authored in Editor).")]
     [SerializeField] private GameObject pickupPrefab;
     [SerializeField] private float healAmount = 35f;
-    [Tooltip("Secondi dopo i quali un pickup non raccolto scompare.")]
+    [Tooltip("Seconds after which an uncollected pickup disappears.")]
     [SerializeField] private float pickupLifetime = 12f;
     [SerializeField] private int poolSize = 4;
 
     [Header("Spawn")]
-    [Tooltip("Centro dell'arena: i pickup compaiono entro 'arenaRadius' su questo piano (XZ).")]
+    [Tooltip("Arena center: pickups appear within 'arenaRadius' on this (XZ) plane.")]
     [SerializeField] private Transform arenaCenter;
     [SerializeField] private float arenaRadius = 7f;
-    [Tooltip("Offset verticale rispetto al piano di arenaCenter (per posarlo a terra).")]
+    [Tooltip("Vertical offset from arenaCenter's plane (to place it on the ground).")]
     [SerializeField] private float spawnHeight = 0.5f;
     [Range(0f, 1f)]
-    [Tooltip("Probabilità di drop a ogni colpo a segno.")]
+    [Tooltip("Drop probability on every landed hit.")]
     [SerializeField] private float dropChance = 0.3f;
-    [Tooltip("Intervallo minimo tra due spawn (anti-flood).")]
+    [Tooltip("Minimum interval between two spawns (anti-flood).")]
     [SerializeField] private float minSpawnInterval = 4f;
 
     private SimplePool _pool;
@@ -87,8 +88,7 @@ public class DuelHealthSpawner : MonoBehaviour
         if (pickup != null) _pool.Release(pickup.gameObject);
     }
 
-    // Pickup attivo più vicino a 'from' che sia "pronto" (vivo da almeno minAge:
-    // il ritardo di reazione del boss). false se nessuno qualifica.
+    /// <summary>Active pickup nearest to 'from' that is "ready" (alive for at least minAge: the boss's reaction delay). False if none qualifies.</summary>
     public bool TryGetNearestReady(Vector3 from, float minAge, out Transform pickup, out float distance)
     {
         pickup = null;

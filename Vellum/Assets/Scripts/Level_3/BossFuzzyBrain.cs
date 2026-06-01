@@ -1,14 +1,14 @@
 using Vellum.AI.Fuzzy;
 
-// Logica fuzzy del boss del livello finale (l'algoritmo di IA richiesto dalla
-// consegna). Decisione SEMPLICE usata solo in Fase 2 (mondo della Luna): quanto
-// il boss vuole staccarsi dal Player per INTERCETTARE Jammo mentre questo gli
-// porta un pezzo. Input: distanza da Jammo e se Jammo sta trasportando; output:
-// 'intercept' 0..1 (sopra una soglia il boss insegue Jammo invece del Player).
-//
-// È un controllore DEDICATO (non EnemyFuzzyBrain dell'arena): quello è un
-// singleton condiviso dai nemici a ondate e ha input diversi (distanza/vita/
-// affollamento). Tenerli separati evita di alterarne il comportamento.
+/// <summary>
+/// Fuzzy logic for the final-level boss (the required AI technique). Two simple decisions used in
+/// Phase 2 (Moon world): how much the boss wants to break off from the Player to INTERCEPT Jammo
+/// while he carries a piece (inputs: distance to Jammo + whether carrying; output 'intercept'
+/// 0..1), and how much it wants to go grab a health pickup when wounded (output 'seekHealth').
+///
+/// This is a DEDICATED controller (not the arena's EnemyFuzzyBrain, which is a shared singleton
+/// with different inputs); keeping them separate avoids altering each other's behavior.
+/// </summary>
 public sealed class BossFuzzyBrain
 {
     private const string JAMMO_DISTANCE = "jammoDistance";
@@ -47,7 +47,7 @@ public sealed class BossFuzzyBrain
         _oSeekHealth = _seek.OutputIndex(SEEK_HEALTH);
     }
 
-    // Voglia di intercettare Jammo (0..1). carrying passato come 0/1.
+    /// <summary>Desire to intercept Jammo (0..1). <paramref name="carrying"/> passed as 0/1.</summary>
     public float Intercept(float jammoDistance, bool carrying)
     {
         _inI[_iDistance] = jammoDistance;
@@ -56,9 +56,11 @@ public sealed class BossFuzzyBrain
         return _outI[_oIntercept];
     }
 
-    // Voglia di andare a raccogliere un pickup di vita (0..1): alta solo se ferito
-    // (selfHealth basso) E pickup vicino. Da sano la ignora (il Player lo prende
-    // libero); da ferito non attraversa l'arena per uno lontano.
+    /// <summary>
+    /// Desire to go grab a health pickup (0..1): high only when wounded (low selfHealth) AND the
+    /// pickup is near. When healthy it ignores it (the Player takes it freely); when wounded it
+    /// won't cross the arena for a far one.
+    /// </summary>
     public float SeekHealth(float selfHealthNormalized, float pickupDistance)
     {
         _inS[_iSelfHealth] = selfHealthNormalized;
@@ -87,11 +89,11 @@ public sealed class BossFuzzyBrain
             .Samples(32)
             .Input(distance).Input(carrying)
             .Output(intercept)
-            // Jammo a portata e carico di un pezzo: vai a fermarlo.
+            // Jammo in reach and carrying a piece: go stop him.
             .Rule().If(JAMMO_DISTANCE, "Near").And(JAMMO_CARRYING, "Yes").Then(INTERCEPT, "High")
-            // Carico ma lontano: non vale la pena lasciare il Player.
+            // Carrying but far: not worth leaving the Player.
             .Rule().If(JAMMO_DISTANCE, "Far").Then(INTERCEPT, "Low")
-            // A mani vuote: ignoralo, resta sul Player.
+            // Empty-handed: ignore him, stay on the Player.
             .Rule().If(JAMMO_CARRYING, "No").Then(INTERCEPT, "Low")
             .Build();
 
@@ -118,11 +120,11 @@ public sealed class BossFuzzyBrain
             .Samples(32)
             .Input(selfHealth).Input(pickupDistance)
             .Output(seek)
-            // Ferito e con un pickup vicino: vai a curarti.
+            // Wounded and with a pickup nearby: go heal.
             .Rule().If(SELF_HEALTH, "Low").And(PICKUP_DISTANCE, "Near").Then(SEEK_HEALTH, "High")
-            // Sano: non perdere tempo col pickup, resta in combattimento.
+            // Healthy: don't waste time on the pickup, stay in the fight.
             .Rule().If(SELF_HEALTH, "High").Then(SEEK_HEALTH, "Low")
-            // Pickup lontano: non attraversare l'arena per quello.
+            // Pickup far: don't cross the arena for it.
             .Rule().If(PICKUP_DISTANCE, "Far").Then(SEEK_HEALTH, "Low")
             .Build();
 

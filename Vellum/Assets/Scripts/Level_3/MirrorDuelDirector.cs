@@ -3,27 +3,28 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
-// Orchestratore del livello finale "Lo Specchio d'Acqua". Due fasi IDENTICHE
-// (Sole, poi Luna), ognuna in due tempi:
-//   1) Raccolta: il nemico è immune; ogni 'hitsPerPiece' colpi del Player
-//      (BossShield) **sblocca** uno dei pezzi GIÀ PIAZZATI sull'altare nemico.
-//      Jammo porta i pezzi sbloccati all'altare del Player (uno slot per pezzo).
-//   2) Finestra danno: consegnati tutti i pezzi, il nemico diventa colpibile.
-//      Fase Sole → fino a 'phase1DamageFloor' (50%); Fase Luna → fino a 0 (Win).
-//
-// Differenze Fase Luna: il boss è potenziato (BossDuelAI) e può intercettare
-// Jammo mentre trasporta — se colpito, il pezzo TORNA al suo posto sull'altare
-// nemico (e Jammo lo riproverà) e Jammo subisce danno. In Fase Sole Jammo è al
-// sicuro (il boss non lo prende).
-//
-// Sconfitta: morte del Player o di Jammo (Game Over guidato da PlayerHealth/
-// JammoHealth). Riusa JammoCarrier come l'Act_02. I pezzi sono oggetti di scena
-// persistenti (5 prefab diversi): niente pooling, si riposizionano e basta.
+/// <summary>
+/// Orchestrates the final level "The Mirror of Water". Two IDENTICAL phases (Sun, then Moon),
+/// each in two beats:
+///   1) Collection: every 'hitsPerPiece' Player hits (BossShield) **unlock** one of the pieces
+///      ALREADY PLACED on the enemy altar. Jammo carries unlocked pieces to the Player's altar
+///      (one slot per piece).
+///   2) Damage window: once all pieces are delivered, the enemy becomes hittable.
+///      Sun phase → down to 'phase1DamageFloor' (50%); Moon phase → down to 0 (Win).
+///
+/// Moon-phase differences: the boss is empowered (BossDuelAI) and can intercept Jammo mid-carry —
+/// if hit, the piece RETURNS to its spot on the enemy altar (and Jammo retries) and Jammo takes
+/// damage. In Sun phase Jammo is safe (the boss doesn't go for him).
+///
+/// Defeat: death of the Player or of Jammo (Game Over driven by PlayerHealth/JammoHealth). Reuses
+/// JammoCarrier like Act_02. The pieces are persistent scene props (5 distinct prefabs): no
+/// pooling, they just get repositioned.
+/// </summary>
 public class MirrorDuelDirector : MonoBehaviour
 {
     private enum DuelPhase { Sun, Flipping, Moon, Won, Lost }
 
-    [Header("Attori")]
+    [Header("Actors")]
     [SerializeField] private JammoCarrier jammo;
     [SerializeField] private BossDuelAI boss;
     [SerializeField] private BossShield bossShield;
@@ -31,41 +32,41 @@ public class MirrorDuelDirector : MonoBehaviour
     [SerializeField] private Health playerHealth;
     [SerializeField] private MirrorFlipDirector flip;
 
-    [Header("Pezzi (pre-piazzati sull'altare nemico)")]
-    [Tooltip("I prefab già in scena sull'altare nemico. Jammo li porta uno per uno all'altare del Player.")]
+    [Header("Pieces (pre-placed on the enemy altar)")]
+    [Tooltip("The prefabs already in the scene on the enemy altar. Jammo carries them one by one to the Player's altar.")]
     [SerializeField] private Transform[] enemyPieces;
-    [Tooltip("Slot di destinazione sull'altare del Player, uno per pezzo (stesso indice di enemyPieces).")]
+    [Tooltip("Destination slots on the Player's altar, one per piece (same index as enemyPieces).")]
     [SerializeField] private Transform[] playerAltarSlots;
 
-    [Header("Punti d'appoggio Jammo (a terra, su NavMesh)")]
-    [Tooltip("Dove Jammo si ferma per prendere i pezzi (davanti all'altare nemico). Se vuoto usa la posizione del pezzo: rischia di farlo entrare nel piedistallo.")]
+    [Header("Jammo stand points (on the ground, on the NavMesh)")]
+    [Tooltip("Where Jammo stops to take the pieces (in front of the enemy altar). If empty, uses the piece position: risks making him enter the pedestal.")]
     [SerializeField] private Transform enemyStandPoint;
-    [Tooltip("Dove Jammo si ferma per posare i pezzi (davanti all'altare del Player). Se vuoto usa lo slot.")]
+    [Tooltip("Where Jammo stops to place the pieces (in front of the Player's altar). If empty, uses the slot.")]
     [SerializeField] private Transform playerStandPoint;
 
     [Header("HUD")]
-    [Tooltip("Barre HUD (HudReveal) rivelate in dissolvenza all'avvio del duello.")]
+    [Tooltip("HUD bars (HudReveal) revealed with a fade at the start of the duel.")]
     [SerializeField] private HudReveal[] hudReveals;
 
-    [Header("Regole")]
-    [Tooltip("Vita normalizzata sotto cui il nemico NON scende in Fase Sole (0.5 = 50%). Fase Luna → 0.")]
+    [Header("Rules")]
+    [Tooltip("Normalized health below which the enemy does NOT drop in Sun phase (0.5 = 50%). Moon phase → 0.")]
     [Range(0f, 1f)]
     [SerializeField] private float phase1DamageFloor = 0.5f;
     [SerializeField] private float pauseAfterPlace = 0.4f;
 
-    [Header("Eventi")]
+    [Header("Events")]
     [SerializeField] private UnityEvent onEnterSun;
     [SerializeField] private UnityEvent onEnterMoon;
     [SerializeField] private UnityEvent onWin;
     [SerializeField] private UnityEvent onLose;
-    [Tooltip("0..1: pezzi consegnati / totale (barra collezione). La barra vita Boss si aggancia a bossHealth.onDamaged.")]
+    [Tooltip("0..1: pieces delivered / total (collection bar). The Boss health bar hooks bossHealth.onDamaged.")]
     [SerializeField] private HealthChangedEvent onCollectProgress;
 
     private DuelPhase _phase;
-    private Transform[] _homeParent;   // parent/posa iniziale dei pezzi (altare nemico)
+    private Transform[] _homeParent;   // pieces' initial parent/pose (enemy altar)
     private Vector3[] _homePos;
     private Vector3[] _homeScale;
-    private readonly Queue<int> _releaseQueue = new Queue<int>(); // pezzi sbloccati, in attesa di Jammo
+    private readonly Queue<int> _releaseQueue = new Queue<int>(); // unlocked pieces, waiting for Jammo
     private int _releasedTotal;
     private int _delivered;
     private int _pendingRelease;
@@ -93,17 +94,16 @@ public class MirrorDuelDirector : MonoBehaviour
         }
     }
 
-    // Avvio in Start (non in OnEnable): RevealHud() rivela barre HudReveal il cui
-    // hiddenOnStart le nasconde in Awake. Start è garantito dopo TUTTI gli Awake,
-    // quindi le barre sono inizializzate quando le riveliamo (in OnEnable il
-    // reveal poteva girare prima del loro Awake e venire poi sovrascritto).
+    // Start (not OnEnable): RevealHud() reveals HudReveal bars whose hiddenOnStart hides them in
+    // Awake. Start is guaranteed after ALL Awakes, so the bars are initialized when we reveal them
+    // (in OnEnable the reveal could run before their Awake and then be overwritten).
     void Start()
     {
         if (jammo == null || boss == null || bossShield == null || bossHealth == null ||
             flip == null || PieceCount == 0 ||
             playerAltarSlots == null || playerAltarSlots.Length < PieceCount)
         {
-            Debug.LogWarning("[MirrorDuelDirector] Riferimenti mancanti o slot insufficienti: il duello non parte.", this);
+            Debug.LogWarning("[MirrorDuelDirector] Missing references or insufficient slots: the duel won't start.", this);
             return;
         }
         _loop = StartCoroutine(RunDuel());
@@ -114,8 +114,7 @@ public class MirrorDuelDirector : MonoBehaviour
         if (_loop != null) { StopCoroutine(_loop); _loop = null; }
     }
 
-    // BossShield ogni 'hitsPerPiece' colpi del Player (solo in raccolta): sblocca
-    // il prossimo pezzo da portare. Cap al numero di pezzi.
+    /// <summary>Called by BossShield every 'hitsPerPiece' Player hits (collection only): unlocks the next piece to carry. Capped to the piece count.</summary>
     public void NotifyPlayerBrokePiece()
     {
         if (_releasedTotal + _pendingRelease < PieceCount) _pendingRelease++;
@@ -138,9 +137,9 @@ public class MirrorDuelDirector : MonoBehaviour
         _phase = moon ? DuelPhase.Moon : DuelPhase.Sun;
         boss.SetMoonPhase(moon);
 
-        // Raccolta: il boss NON è invulnerabile, ma prende 1 HP/colpo (mentre
-        // Jammo trasporta) e non scende sotto il floor di fase (Fase 1 = 50%).
-        bossShield.SetInvulnerable(false);   // libera l'eventuale blockAll del flip
+        // Collection: the boss is NOT invulnerable, but takes 1 HP/hit (while Jammo
+        // carries) and doesn't drop below the phase floor (Phase 1 = 50%).
+        bossShield.SetInvulnerable(false);   // clear any leftover blockAll from the flip
         bossShield.SetShedding(true);
         bossHealth.SetMaxDamagePerHit(1f);
         bossHealth.SetDamageFloor(moon ? 0f : phase1DamageFloor * bossHealth.MaxHealth);
@@ -154,7 +153,7 @@ public class MirrorDuelDirector : MonoBehaviour
         ReportCollect();
         if (moon) onEnterMoon.Invoke(); else onEnterSun.Invoke();
 
-        // --- Raccolta: il Player sblocca i pezzi colpendo; Jammo li trasporta ---
+        // --- Collection: the Player unlocks pieces by hitting; Jammo carries them ---
         while (_delivered < PieceCount)
         {
             if (PlayerOrJammoDown()) { Lose(); yield break; }
@@ -162,12 +161,12 @@ public class MirrorDuelDirector : MonoBehaviour
             ProcessPendingReleases();
 
             if (_releaseQueue.Count > 0) yield return CarryOnePiece(_releaseQueue.Dequeue(), moon);
-            else yield return GoHomeOnce(); // attende i colpi del Player
+            else yield return GoHomeOnce(); // wait for the Player's hits
         }
 
-        // --- Finestra danno: danno pieno (niente più cap a 1) ---
+        // --- Damage window: full damage (no more cap to 1) ---
         bossShield.SetShedding(false);
-        bossHealth.SetMaxDamagePerHit(0f); // 0 = nessun cap; il floor di fase resta
+        bossHealth.SetMaxDamagePerHit(0f); // 0 = no cap; the phase floor remains
 
         float floor = moon ? 0f : phase1DamageFloor;
         while (!bossHealth.IsDead && bossHealth.Normalized > floor)
@@ -178,8 +177,8 @@ public class MirrorDuelDirector : MonoBehaviour
 
         if (moon) { Win(); yield break; }
 
-        // Fase Sole completata: ri-scuda, ribalta il cielo (i pezzi tornano a casa
-        // all'inizio della Fase Luna, in ResetPiecesHome).
+        // Sun phase complete: re-shield, flip the sky (the pieces return home at the
+        // start of the Moon phase, in ResetPiecesHome).
         bossShield.SetInvulnerable(true);
         _phase = DuelPhase.Flipping;
         boss.SetPaused(true);
@@ -203,8 +202,8 @@ public class MirrorDuelDirector : MonoBehaviour
         Transform piece = enemyPieces[index];
         if (piece == null) { _delivered++; ReportCollect(); yield break; }
 
-        // Jammo si ferma a terra davanti all'altare (non sopra il pezzo, che è in
-        // cima al piedistallo): il pezzo poi vola su di lui in PickUpRoutine.
+        // Jammo stops on the ground in front of the altar (not on top of the piece, which is at
+        // the top of the pedestal): the piece then flies up to him in PickUpRoutine.
         Vector3 pickupStand = enemyStandPoint != null ? enemyStandPoint.position : piece.position;
         Vector3 dropStand = playerStandPoint != null ? playerStandPoint.position : playerAltarSlots[index].position;
 
@@ -214,13 +213,13 @@ public class MirrorDuelDirector : MonoBehaviour
 
         if (jammo.IsDead) yield break;
 
-        // Solo Fase Luna: colpito mentre trasporta → pezzo perso, torna al suo posto.
+        // Moon phase only: hit while carrying → piece lost, returns to its spot.
         if (moon && jammo.DropRequested)
         {
             yield return jammo.DropCarriedPiece(piece);
             jammo.ClearDropRequest();
             ReturnPieceHome(index);
-            _releaseQueue.Enqueue(index); // già sbloccato: Jammo riprova, niente colpo extra
+            _releaseQueue.Enqueue(index); // already unlocked: Jammo retries, no extra hit
             yield return _waitPause;
             yield break;
         }
@@ -231,7 +230,7 @@ public class MirrorDuelDirector : MonoBehaviour
         yield return _waitPause;
     }
 
-    // Riporta un pezzo alla sua posa iniziale sull'altare nemico (parent/pos/scala).
+    /// <summary>Returns a piece to its initial pose on the enemy altar (parent/pos/scale).</summary>
     private void ReturnPieceHome(int index)
     {
         Transform piece = enemyPieces[index];
@@ -273,7 +272,7 @@ public class MirrorDuelDirector : MonoBehaviour
     private void Lose()
     {
         _phase = DuelPhase.Lost;
-        onLose.Invoke(); // la schermata di Game Over la guida PlayerHealth/JammoHealth
+        onLose.Invoke(); // the Game Over screen is driven by PlayerHealth/JammoHealth
     }
 
     private bool PlayerOrJammoDown()
