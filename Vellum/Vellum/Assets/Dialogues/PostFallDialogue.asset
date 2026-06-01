@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1735c545341a7c841b2ac7f47768a64b, type: 3}
+  m_Name: PostFallDialogue
+  m_EditorClassIdentifier: Assembly-CSharp::DialogueAsset
+  dialogueId: 
+  lines:
+  - speaker: Narrator
+    text: The wanderer approached the small robot lying on the ground.
+  - speaker: Narrator
+    text: At his touch, it sprang to life.
+  - speaker: Narrator
+    text: Rising in silence, the little machine stepped into the void.
+  - speaker: Narrator
+    text: It became a guide, casting a trail of light across the invisible floor...
+  - speaker: Narrator
+    text: ...leading the wanderer toward a mysterious door ahead.
+  - speaker: Narrator
+    text: By pressing [Q], the wanderer could call upon its light to...
+  - speaker: Narrator
+    text: ...reveal the hidden floor. A gift granted, but three times.

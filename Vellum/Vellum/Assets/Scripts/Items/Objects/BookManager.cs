@@ -22,6 +22,9 @@ public class BookManager : MonoBehaviour
     [Tooltip("L'oggetto libro nel mondo che verrà distrutto al primo utilizzo")]
     public GameObject worldBookObject;
 
+    [Tooltip("Spunta questa casella se il giocatore ha già preso il libro in un livello precedente")]
+    public bool startAlreadyPickedUp = false;
+
     [Header("Dialogo")]
     [Tooltip("Dialogo che parte alla prima chiusura del libro dopo la raccolta")]
     public DialogueAsset postBookDialogue;
@@ -31,6 +34,7 @@ public class BookManager : MonoBehaviour
     public UnityEvent onBookPickedUp;
 
     private bool _isOpen = false;
+    public bool IsOpen => _isOpen;
     private bool _hasBeenPickedUp = false;
     private bool _hasShownPostBookDialogue = false;
     private int _lastToggleFrame = -1;
@@ -38,6 +42,15 @@ public class BookManager : MonoBehaviour
 
     void Start()
     {
+        // Se abbiamo spuntato la casella, diciamo al sistema che lo abbiamo già raccolto
+        if (startAlreadyPickedUp)
+        {
+            _hasBeenPickedUp = true;
+            // Libro portato da un livello precedente: il dialogo di prima
+            // apertura è già avvenuto in quel livello, non va replicato qui.
+            _hasShownPostBookDialogue = true;
+        }
+
         if (bookPanel != null)
         {
             bookPanel.anchoredPosition = offScreenPosition;

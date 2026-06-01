@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Generatore Texture Sci-Fi Trasparente</title>
+    <style>
+        /* Sfondo a scacchiera per farti vedere la trasparenza */
+        body { background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 40px 40px; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
+        canvas { border: 2px solid #555; margin-top: 10px; background: transparent; }
+        .instructions { background: rgba(0,0,0,0.7); display: inline-block; padding: 10px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h2>Griglia Olografica (Trasparente)</h2>
+    <p class="instructions">Clicca col tasto destro sulla griglia e fai "Salva immagine con nome..." (sarà un PNG con trasparenza).</p>
+    
+    <canvas id="floorCanvas" width="1024" height="1024"></canvas>
+
+    <script>
+        const canvas = document.getElementById('floorCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 1. Assicuriamoci che il canvas sia completamente pulito e trasparente
+        ctx.clearRect(0, 0, 1024, 1024);
+
+        // 2. Impostazioni linee azzurre
+        ctx.strokeStyle = '#00ffff'; 
+        ctx.lineWidth = 4;           
+        
+        // 3. Effetto Neon
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00ffff';
+
+        // 4. Disegno della griglia
+        const tileSize = 128; 
+        const padding = 8;    
+
+        for(let x = 0; x < 1024; x += tileSize) {
+            for(let y = 0; y < 1024; y += tileSize) {
+                ctx.strokeRect(x + padding, y + padding, tileSize - (padding * 2), tileSize - (padding * 2));
+            }
+        }
+    </script>
+</body>
+</html>

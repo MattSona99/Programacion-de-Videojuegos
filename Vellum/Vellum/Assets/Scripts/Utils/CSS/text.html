@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Menu Text - Custom Generator</title>
+    
+    <!-- Libreria per convertire l'HTML in Immagine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
+
+    <style>
+        body {
+            background-color: #e5e5f7;
+            background-image:  repeating-linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), repeating-linear-gradient(45deg, #ccc 25%, #e5e5f7 25%, #e5e5f7 75%, #ccc 75%, #ccc);
+            background-position: 0 0, 10px 10px;
+            background-size: 20px 20px;
+            
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: sans-serif;
+        }
+
+        /* Pannello degli strumenti in alto */
+        .toolbar {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 40px;
+            border: 3px solid #333;
+        }
+
+        .toolbar input[type="text"] {
+            padding: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            border: 2px solid #ccc;
+            border-radius: 6px;
+            width: 250px;
+        }
+
+        .toolbar input[type="color"] {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        #download-btn {
+            padding: 15px 25px;
+            background-color: #4CAF50;
+            color: white;
+            border: 2px solid #2E7D32;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #2E7D32;
+            transition: all 0.1s;
+        }
+
+        #download-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #2E7D32;
+        }
+
+        /* Area trasparente che verrà scaricata. 
+           Ha un po' di padding per evitare che l'ombra del testo venga tagliata fuori dall'immagine */
+        #capture-area {
+            padding: 20px 30px; 
+            background: transparent; 
+            display: inline-block;
+        }
+
+        /* Stile solo del Testo */
+        .game-text {
+            font-family: 'Arial Black', Impact, sans-serif;
+            font-size: 32px; /* Ingrandito per avere alta qualità su Unity */
+            letter-spacing: 4px;
+            color: var(--text-color, white); /* Ora il color picker cambia il colore del testo */
+            margin: 0;
+            text-align: center; 
+            
+            /* Contorno nero spesso e ombra in stile videogioco */
+            text-shadow: 
+                -4px -4px 0 #000,  
+                 4px -4px 0 #000,
+                -4px  4px 0 #000,
+                 4px  4px 0 #000,
+                 10px 10px 0 #000; 
+            
+            text-transform: uppercase;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Pannello di controllo -->
+    <div class="toolbar">
+        <input type="text" id="btn-text-input" value="START" oninput="aggiornaTesto()">
+        <input type="color" id="btn-color-input" value="#FFFFFF" oninput="aggiornaTesto()">
+        <button id="download-btn" onclick="salvaImmagine()">📸 SCARICA TESTO</button>
+    </div>
+
+    <!-- Il testo vero e proprio che verrà esportato -->
+    <div id="capture-area">
+        <h1 id="preview-text" class="game-text">START</h1>
+    </div>
+
+    <script>
+        // Funzione che aggiorna il testo e il colore in tempo reale
+        function aggiornaTesto() {
+            const testo = document.getElementById('btn-text-input').value;
+            const colore = document.getElementById('btn-color-input').value;
+            const previewText = document.getElementById('preview-text');
+            
+            previewText.innerText = testo || " "; 
+            previewText.style.setProperty('--text-color', colore);
+        }
+
+        // Funzione per scaricare l'immagine
+        function salvaImmagine() {
+            const areaDaCatturare = document.getElementById('capture-area');
+            const bottoneDownload = document.getElementById('download-btn');
+            const testoAttuale = document.getElementById('btn-text-input').value.trim() || "Testo";
+            
+            bottoneDownload.innerText = "⏳ Creazione...";
+
+            // domtoimage scarica l'elemento preservando le trasparenze
+            domtoimage.toPng(areaDaCatturare)
+                .then(function (dataUrl) {
+                    var link = document.createElement('a');
+                    link.download = 'Text_' + testoAttuale.replace(/[^a-z0-9]/gi, '_') + '.png';
+                    link.href = dataUrl;
+                    link.click();
+                    
+                    bottoneDownload.innerText = "✅ SALVATO!";
+                    setTimeout(() => bottoneDownload.innerText = "📸 SCARICA TESTO", 2000);
+                })
+                .catch(function (error) {
+                    console.error('Ops, qualcosa è andato storto!', error);
+                    bottoneDownload.innerText = "❌ ERRORE";
+                    setTimeout(() => bottoneDownload.innerText = "📸 SCARICA TESTO", 2000);
+                });
+        }
+
+        window.onload = aggiornaTesto;
+    </script>
+
+</body>
+</html>
