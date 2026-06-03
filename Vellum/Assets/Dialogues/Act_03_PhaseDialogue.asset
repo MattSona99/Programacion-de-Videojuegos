@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1735c545341a7c841b2ac7f47768a64b, type: 3}
+  m_Name: Act_03_PhaseDialogue
+  m_EditorClassIdentifier: Assembly-CSharp::DialogueAsset
+  dialogueId: 
+  lines:
+  - speaker: Narrator
+    text: Blow met blow, and neither yielded.
+  - speaker: Narrator
+    text: The duel stretched on, long and merciless, beyond the count of hours.
+  - speaker: Narrator
+    text: 'So long they fought that the heavens grew weary:'
+  - speaker: Narrator
+    text: the sun sank, the red moon climbed, and the mirrored sky changed its master.
+  - speaker: Narrator
+    text: Beneath the blood-red moon the reflection rose once more...
+  - speaker: Narrator
+    text: "...stronger than before \u2014 and the battle resumed."

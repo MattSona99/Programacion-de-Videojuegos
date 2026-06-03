@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.Events;
 
 /// <summary>
 /// Health pickup. Spawned by the WaveManager when an enemy dies, with a configurable chance
@@ -20,9 +21,17 @@ public class HealthPickup : MonoBehaviour
     [SerializeField] private float healAmount = 50f;
     [Tooltip("Player tag. The pickup only triggers on contact with this tag.")]
     [SerializeField] private string playerTag = "Player";
+    [Tooltip("Invoked when the pickup is collected (audio: heal cue).")]
+    [SerializeField] private UnityEvent onCollected;
 
     private Action _onCollected;
     private bool _consumed;
+
+    /// <summary>
+    /// Raised when any pickup is collected; the bool is true when it healed the Player (false for a
+    /// Jammo repair kit). Static because pickups are pooled — the scoring binder subscribes once.
+    /// </summary>
+    public static event Action<bool> Collected;
 
     /// <summary>
     /// Configured by the WaveManager when spawned from the pool: the callback returns the
@@ -44,6 +53,8 @@ public class HealthPickup : MonoBehaviour
 
         target.Heal(healAmount);
         _consumed = true;
+        Collected?.Invoke(healTarget == HealTarget.Player);
+        onCollected.Invoke();
         _onCollected?.Invoke();
     }
 

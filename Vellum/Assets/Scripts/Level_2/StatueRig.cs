@@ -37,6 +37,12 @@ public class StatueRig : MonoBehaviour
     [SerializeField] private UnityEvent onPartRevealed;
     [SerializeField] private UnityEvent onStatueComplete;
 
+    /// <summary>Fired when a part is placed (scoring). Code-friendly mirror of <see cref="onPartRevealed"/>.</summary>
+    public event System.Action PartRevealed;
+
+    /// <summary>Fired when the statue is completed (scoring). Code-friendly mirror of <see cref="onStatueComplete"/>.</summary>
+    public event System.Action StatueCompleted;
+
     private readonly List<int> _free = new List<int>();
     private int _totalSlots;
 
@@ -94,7 +100,8 @@ public class StatueRig : MonoBehaviour
         }
 
         onPartRevealed.Invoke();
-        if (_free.Count == 0) onStatueComplete.Invoke();
+        PartRevealed?.Invoke();
+        if (_free.Count == 0) { onStatueComplete.Invoke(); StatueCompleted?.Invoke(); }
     }
 
     /// <summary>

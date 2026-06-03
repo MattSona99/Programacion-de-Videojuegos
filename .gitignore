@@ -1,0 +1,5 @@
+# Repo-level ignores (root holds the Vellum and Ubstract Unity projects)
+
+# Build artifacts / packaged builds
+*.zip
+[Bb]uilds/
