@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -36,6 +37,12 @@ public class PlayerMeleeAttack : MonoBehaviour
     /// </summary>
     public bool IsSwinging { get; private set; }
 
+    /// <summary>Raised when a swing starts. Used by the scoring system as the Accuracy denominator.</summary>
+    public event Action Swung;
+
+    /// <summary>Raised once per distinct target actually hit in a swing. Accuracy numerator.</summary>
+    public event Action HitLanded;
+
     /// <summary>
     /// Called by PlayerCombat on left click. <paramref name="damageOverride"/> &gt; 0 is used
     /// instead of the default (useful for per-hit combo damage).
@@ -43,6 +50,7 @@ public class PlayerMeleeAttack : MonoBehaviour
     public void BeginSwing(float damageOverride = 0f)
     {
         if (_swing != null) StopCoroutine(_swing);
+        Swung?.Invoke();
         _swing = StartCoroutine(SwingRoutine(damageOverride > 0f ? damageOverride : attackDamage));
     }
 
@@ -100,6 +108,7 @@ public class PlayerMeleeAttack : MonoBehaviour
 
             _damagedThisSwing.Add(target);
             target.TakeDamage(new DamageInfo(dmg, transform.position, gameObject));
+            HitLanded?.Invoke();
         }
     }
 

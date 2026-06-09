@@ -905,6 +905,7 @@ GameObject:
   - component: {fileID: -5153298262574407355}
   - component: {fileID: 8422452097166147082}
   - component: {fileID: 8297342820636155807}
+  - component: {fileID: -5029241400164672831}
   m_Layer: 7
   m_Name: TurtleShellPolyart
   m_TagString: Untagged
@@ -970,7 +971,19 @@ MonoBehaviour:
       m_Calls: []
   onDied:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: -5029241400164672831}
+        m_TargetAssemblyTypeName: AudioCue, Assembly-CSharp
+        m_MethodName: Play
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &8961599680284715284
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1000,7 +1013,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3029703f3722424419aa1b43388f1be3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyAI
-  playerTarget: {fileID: 0}
   moveSpeed: 3
   turnSpeed: 10
   gravity: -20
@@ -1010,15 +1022,15 @@ MonoBehaviour:
   separationRadius: 1.5
   separationWeight: 1.5
   peerCheckRadius: 2.5
-  peerCheckDot: 0.7
-  peerBlockTime: 0.1
-  avoidingDuration: 1
-  avoidingAngleDeg: 85
-  avoidingCooldown: 0.5
   attackRange: 1.8
-  minAttackCooldown: 1
+  stopDistance: 1
+  collisionMargin: 0.2
   maxAttackCooldown: 3
+  minAttackCooldown: 1
   enemyDamage: 10
+  fanSpacingDeg: 32
+  decisionInterval: 0.2
+  retargetInterval: 0.3
 --- !u!65 &8422452097166147082
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -1065,6 +1077,22 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0
   m_Center: {x: 0, y: 1, z: 0}
+--- !u!114 &-5029241400164672831
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6753617674297473082}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 32b8cbcee7966fc44830f58a21f1cc85, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AudioCue
+  clips:
+  - {fileID: 8300000, guid: aa7afdfe954db3f479e2ebceac04ebff, type: 3}
+  volume: 1
+  randomize: 1
 --- !u!1 &6861681153245785469
 GameObject:
   m_ObjectHideFlags: 0

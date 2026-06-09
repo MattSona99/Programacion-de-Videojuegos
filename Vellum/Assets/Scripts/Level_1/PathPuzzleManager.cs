@@ -72,6 +72,18 @@ public class PathPuzzleManager : MonoBehaviour
     [Tooltip("Optional: invoked when the hint charges run out.")]
     public UnityEvent onHintsDepleted;
 
+    [Header("Score events")]
+    [Tooltip("Invoked when the puzzle sequence begins (scoring: Level 1 timer start).")]
+    public UnityEvent onPuzzleStarted;
+    [Tooltip("Invoked the first time the Player reaches the mid-path checkpoint (scoring: time split).")]
+    public UnityEvent onCheckpointReached;
+    [Tooltip("Invoked when the puzzle is completed, last tile reached (scoring: Level 1 done).")]
+    public UnityEvent onPuzzleCompleted;
+    [Tooltip("Invoked on a wrong-tile fail, before respawn (scoring: Fallen count).")]
+    public UnityEvent onFail;
+    [Tooltip("Invoked when the Player steps correctly onto a NEW tile (audio: correct-tile cue).")]
+    public UnityEvent onCorrectStep;
+
     [Header("Door")]
     [Tooltip("Controller of the door that builds up in height via shader.")]
     [SerializeField] private DoorBuildController doorController;
@@ -243,6 +255,7 @@ public class PathPuzzleManager : MonoBehaviour
         _inGracePeriod = true;
         IsPuzzleCompleted = false;
         _hintChargesLeft = memoryHintCharges;
+        onPuzzleStarted.Invoke();
 
         _correctSet = new HashSet<PathTile>(correctPath);
         _allTiles = FindObjectsByType<PathTile>(FindObjectsSortMode.None);
@@ -313,6 +326,7 @@ public class PathPuzzleManager : MonoBehaviour
             _maxCorrectStepReached = idx;
             currentStepIndex = idx + 1;
             _inGracePeriod = false;
+            onCorrectStep.Invoke();
 
             // Door reveal: raise the door based on the new max (it can jump several
             // steps at once if the player skipped during grace).
@@ -331,11 +345,13 @@ public class PathPuzzleManager : MonoBehaviour
             {
                 Debug.Log("[Jammo] Checkpoint reached! Jammo resumes.");
                 jammoController.ResumeWalkToEnd();
+                onCheckpointReached.Invoke();
             }
             else if (idx == correctPath.Count - 1)
             {
                 Debug.Log("[Puzzle] Puzzle Completed! Open the door!");
                 IsPuzzleCompleted = true;
+                onPuzzleCompleted.Invoke();
                 if (doorPortal != null) doorPortal.TriggerTransition();
             }
             return;
@@ -353,6 +369,7 @@ public class PathPuzzleManager : MonoBehaviour
         // Not in grace and off-path: FAIL.
         steppedTile.SetColor(steppedTile.wrongColor);
         steppedTile.SetSolid(false);
+        onFail.Invoke();
         StartCoroutine(FailAndReset());
     }
 

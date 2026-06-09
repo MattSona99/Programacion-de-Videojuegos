@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 using System.Collections;
 using Unity.Cinemachine;
 
@@ -27,6 +28,10 @@ public class CinematicFallManager : MonoBehaviour
     [Tooltip("Drag the Particle Systems (Book, Tomb, etc.) here to stop them during the fall")]
     public ParticleSystem[] particlesToStop;
 
+    [Header("Events")]
+    [Tooltip("Invoked once, the moment the fall/dissolve actually begins. Wire the dissolve SFX here (NOT to the interactable), so it plays only when the arena dissolves.")]
+    [SerializeField] private UnityEvent onFallStarted;
+
     private bool _hasStarted = false;
 
     /// <summary>True while the fall cinematic is playing.</summary>
@@ -38,6 +43,7 @@ public class CinematicFallManager : MonoBehaviour
         if (_hasStarted) return;
         _hasStarted = true;
         IsPlaying = true;
+        onFallStarted.Invoke();
         StartCoroutine(FallRoutine());
     }
 

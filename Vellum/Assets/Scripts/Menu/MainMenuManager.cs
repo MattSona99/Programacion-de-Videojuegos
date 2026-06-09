@@ -38,12 +38,24 @@ public class MainMenuManager : MonoBehaviour
     [SerializeField] private GameObject restartButton;
 
     [Header("Game Over")]
-    [Tooltip("\"Death Container\" canvas: name + Save Score. Active only on Player death.")]
+    [Tooltip("Shared end-screen container (name + Save Score), reused for both death and victory. Holds the GameOver/YouWin heading images.")]
     [SerializeField] private GameObject deathContainer;
-    [Tooltip("Name field inside the Death Container, read by SaveScore().")]
+    [Tooltip("\"GameOver\" heading image inside the container; visible on DEATH, hidden on victory.")]
+    [SerializeField] private GameObject gameOverImage;
+    [Tooltip("\"YouWin\" heading image inside the container; visible on VICTORY, hidden on death.")]
+    [SerializeField] private GameObject youWinImage;
+    [Tooltip("Name field inside the end-screen container, read by SaveScore().")]
     [SerializeField] private TMP_InputField nameInputField;
     [Tooltip("Maximum number of characters allowed in the name field.")]
     [SerializeField] private int nameCharacterLimit = 10;
+    [Tooltip("Optional: TMP label showing the final numeric score on the end screen.")]
+    [SerializeField] private TMP_Text finalScoreLabel;
+    [Tooltip("Optional: TMP label showing the grade (S/A/B/C/D) on the end screen.")]
+    [SerializeField] private TMP_Text gradeLabel;
+    [Tooltip("Optional fallback: TMP label filled with a plain top-scores list when no LeaderboardUI is assigned.")]
+    [SerializeField] private TMP_Text leaderboardText;
+    [Tooltip("Rich leaderboard list controller (prefab rows + details). Preferred over leaderboardText.")]
+    [SerializeField] private LeaderboardUI leaderboardUI;
     [Tooltip("HUD bars (PlayerHUD, StatueProgressBar, ...) to fade out when the menu opens (Esc pause) and on Player death; they fade back in on resume.")]
     [FormerlySerializedAs("hudHideOnDeath")]
     [SerializeField] private HudReveal[] hudBars;
@@ -76,7 +88,8 @@ public class MainMenuManager : MonoBehaviour
     private bool isTransitioning = false;
     private bool isFirstPlay = true;
     private bool _isGameOver = false;
-    
+    private bool _isVictory = false; // when true, the game-over screen shows the victory title instead of the death title
+
     private Vector2 originalMenuPosition;
     private float originalCameraBlendTime; 
 
@@ -153,11 +166,14 @@ public class MainMenuManager : MonoBehaviour
     {
         if (_isGameOver)
         {
-            // Death screen: only Restart (no Resume/Play) + Death Container.
+            // End screen (death OR victory): only Restart (no Resume/Play) + Death Container.
+            // The title swaps between victory and death based on how we got here.
             if (playButton != null) playButton.SetActive(false);
             if (resumeButton != null) resumeButton.SetActive(false);
             if (restartButton != null) restartButton.SetActive(true);
             if (deathContainer != null) deathContainer.SetActive(true);
+            if (youWinImage != null) youWinImage.SetActive(_isVictory);
+            if (gameOverImage != null) gameOverImage.SetActive(!_isVictory);
             return;
         }
 
@@ -166,6 +182,8 @@ public class MainMenuManager : MonoBehaviour
         if (resumeButton != null) resumeButton.SetActive(!showPlay);
         if (restartButton != null) restartButton.SetActive(!showPlay);
         if (deathContainer != null) deathContainer.SetActive(false);
+        if (youWinImage != null) youWinImage.SetActive(false);
+        if (gameOverImage != null) gameOverImage.SetActive(false);
     }
 
     private void Update()
@@ -262,9 +280,10 @@ public class MainMenuManager : MonoBehaviour
         else
         {
             isLeaderboardOpen = true;
+            RefreshLeaderboardUI();
             if (leaderboardFadeCoroutine != null) StopCoroutine(leaderboardFadeCoroutine);
             leaderboardFadeCoroutine = StartCoroutine(FadePanel(leaderboardPanel, leaderboardCG, true));
-            
+
             if (isSettingsOpen) ToggleSettingsPanel();
         }
     }
@@ -377,14 +396,29 @@ public class MainMenuManager : MonoBehaviour
     /// death button set (Restart + Save Score). TransitionToMenu calls ApplyPauseButtonsState
     /// afterward, which with _isGameOver=true shows the correct set.
     /// </summary>
-    public void ShowGameOver()
+    public void ShowGameOver() => ShowEndScreen(victory: false);
+
+    /// <summary>
+    /// Called on the final Win (wired in the Inspector to <c>MirrorDuelDirector.onWin</c>). Same
+    /// end screen as <see cref="ShowGameOver"/> but with the victory title instead of the death one.
+    /// </summary>
+    public void ShowVictory() => ShowEndScreen(victory: true);
+
+    /// <summary>
+    /// Opens the menu as an end screen (death or victory): locks the Player, shows blur +
+    /// timeScale=0 and the end-screen button set (Restart + Save Score). <paramref name="victory"/>
+    /// selects which title is shown. TransitionToMenu calls ApplyPauseButtonsState afterward, which
+    /// with _isGameOver=true shows the correct set.
+    /// </summary>
+    private void ShowEndScreen(bool victory)
     {
         if (_isGameOver) return;
         _isGameOver = true;
+        _isVictory = victory;
 
         SetPlayerMovement(false);
 
-        // The HUD bars fade out (the death screen must stay clean):
+        // The HUD bars fade out (the end screen must stay clean):
         // HideHudBars() inside TransitionToMenu() handles it.
 
         Cursor.visible = true;
@@ -395,12 +429,24 @@ public class MainMenuManager : MonoBehaviour
         // TransitionToMenu re-enables it fully visible.
         if (deathContainerCG != null) deathContainerCG.alpha = 1f;
 
+        UpdateEndScreenScore();
+
         StartCoroutine(TransitionToMenu());
     }
 
+    /// <summary>Computes the run's score and shows it on the end-screen labels (no-op if unassigned).</summary>
+    private void UpdateEndScreenScore()
+    {
+        if (ScoreManager.Instance == null) return;
+        ScoreManager.Instance.ComputeScores();
+        RunStats stats = ScoreManager.Instance.Current;
+        if (finalScoreLabel != null) finalScoreLabel.text = $"Score: {stats.finalScore}";
+        if (gradeLabel != null) gradeLabel.text = stats.grade;
+    }
+
     /// <summary>
-    /// Placeholder: the scoring system isn't implemented yet. Reads the name from the Death
-    /// Container and logs it; the field fades out as "saved" feedback.
+    /// Saves the current run's score under the entered name (via <see cref="ScoreManager"/>), refreshes
+    /// the leaderboard panel, and fades the name field out as "saved" feedback. Wired to the Save button.
     /// </summary>
     public void SaveScore()
     {
@@ -408,7 +454,16 @@ public class MainMenuManager : MonoBehaviour
             ? nameInputField.text.Trim()
             : "Anonymous";
 
-        Debug.Log($"[Placeholder] Score for '{playerName}' — saving not implemented yet.");
+        if (ScoreManager.Instance != null)
+        {
+            LeaderboardEntry entry = ScoreManager.Instance.SaveEntry(playerName);
+            Debug.Log($"[MainMenuManager] Saved score {entry.finalScore} ({entry.grade}) for '{entry.playerName}'.");
+            RefreshLeaderboardUI();
+        }
+        else
+        {
+            Debug.LogWarning("[MainMenuManager] ScoreManager.Instance missing: score not saved.");
+        }
 
         // Fade out the Death Container: FadePanel disables it at the end of the fade-out
         // and runs on unscaledDeltaTime (works with the game paused, timeScale=0).
@@ -417,6 +472,29 @@ public class MainMenuManager : MonoBehaviour
             if (_deathFadeCoroutine != null) StopCoroutine(_deathFadeCoroutine);
             _deathFadeCoroutine = StartCoroutine(FadePanel(deathContainer, deathContainerCG, false));
         }
+    }
+
+    /// <summary>Refreshes the leaderboard: prefers the rich <see cref="LeaderboardUI"/>, else falls back to the plain text list.</summary>
+    private void RefreshLeaderboardUI()
+    {
+        if (leaderboardUI != null) { leaderboardUI.Refresh(); return; }
+
+        if (leaderboardText == null)
+        {
+            Debug.LogWarning("[MainMenuManager] No 'leaderboardUI' (nor 'leaderboardText') assigned: the leaderboard can't be populated. Assign the LeaderboardUI component on this MainMenuManager.", this);
+            return;
+        }
+
+        LeaderboardData data = LeaderboardStore.Load();
+        if (data.entries.Count == 0) { leaderboardText.text = "No scores yet."; return; }
+
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < data.entries.Count; i++)
+        {
+            LeaderboardEntry e = data.entries[i];
+            sb.AppendLine($"{i + 1}. {e.playerName}  —  {e.finalScore}  ({e.grade})");
+        }
+        leaderboardText.text = sb.ToString();
     }
 
     /// <summary>Restarts the game by reloading Act_01 (resets timeScale and cursor first). Wired to the Restart button.</summary>
@@ -429,6 +507,14 @@ public class MainMenuManager : MonoBehaviour
         Time.timeScale = 1f;
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
+
+        // Clear the persisted GLOBAL dissolve radius: the Act_03 victory epilogue grows it to
+        // engulf the arena, and it would otherwise carry over and pre-dissolve the reloaded scene.
+        // A negative value means "nothing dissolved" (matches CinematicFallManager's reset).
+        Shader.SetGlobalFloat("_GlobalDissolveRadius", -1000f);
+
+        // A restart begins a brand-new playthrough: reset the accumulated score.
+        ScoreManager.Instance?.ResetRun();
 
         SceneManager.LoadScene("Act_01");
     }

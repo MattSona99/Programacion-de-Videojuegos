@@ -371,6 +371,41 @@ public class BossDuelAI : MonoBehaviour
         return p; // fallback: the last sampled
     }
 
+    // ---- Cinematic walk-back (driven by the director) ---------------------
+
+    /// <summary>
+    /// Walks the boss back to <paramref name="pos"/> at walking pace. Used by
+    /// <see cref="MirrorDuelDirector"/> during the phase transition: while the boss is paused
+    /// (<see cref="Update"/> early-returns on <c>_paused</c>, so there's no conflict) the director
+    /// drives this coroutine to send the actors back to their spawn while the camera rises. Feeds
+    /// the real speed to the Animator so it walks without sliding; on arrival it faces the Player
+    /// again and re-enters <see cref="State.Aggro"/>, so the next phase starts from a clean state.
+    /// </summary>
+    public IEnumerator ReturnToSpawn(Vector3 pos)
+    {
+        const float arriveDist = 0.2f;
+        float timeout = repositionTimeout * 2f; // anti-stall safety
+
+        while (timeout > 0f)
+        {
+            Vector3 to = Planar(pos - transform.position);
+            float dist = to.magnitude;
+            if (dist <= arriveDist) break;
+
+            Vector3 dir = to / Mathf.Max(dist, 0.001f);
+            FaceDirection(dir);
+            MoveAt(dir, runSpeed); // run back to spawn (reposition cinematic)
+
+            timeout -= Time.deltaTime;
+            yield return null;
+        }
+
+        SetAnimFloat(SpeedHash, 0f);
+        MoveStep(Vector3.zero, 0f);
+        if (player != null) FaceDirection(Planar(player.position - transform.position));
+        EnterState(State.Aggro);
+    }
+
     // ---- Combo ------------------------------------------------------------
 
     private IEnumerator ComboRoutine(Transform target)

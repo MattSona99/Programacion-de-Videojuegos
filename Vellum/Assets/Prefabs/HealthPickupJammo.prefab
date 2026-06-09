@@ -474,6 +474,7 @@ GameObject:
   - component: {fileID: 1780211583095691382}
   - component: {fileID: 2638266252765670369}
   - component: {fileID: 9142089728826374766}
+  - component: {fileID: -1267679373404794473}
   m_Layer: 0
   m_Name: HealthPickupJammo
   m_TagString: Untagged
@@ -533,6 +534,37 @@ MonoBehaviour:
   healTarget: 1
   healAmount: 25
   playerTag: Player
+  onCollected:
+    m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: -1267679373404794473}
+        m_TargetAssemblyTypeName: AudioCue, Assembly-CSharp
+        m_MethodName: Play
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+--- !u!114 &-1267679373404794473
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3311922594262254197}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 32b8cbcee7966fc44830f58a21f1cc85, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AudioCue
+  clips:
+  - {fileID: 8300000, guid: 350a2feac047ff242a872063933250d0, type: 3}
+  volume: 1
+  randomize: 1
 --- !u!1 &4139374192807223296
 GameObject:
   m_ObjectHideFlags: 0

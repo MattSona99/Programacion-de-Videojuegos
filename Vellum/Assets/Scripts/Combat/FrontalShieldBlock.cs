@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -13,6 +14,9 @@ public class FrontalShieldBlock : MonoBehaviour, IDamageFilter
 
     private PlayerCombat _combat;
 
+    /// <summary>Raised each time a hit is actually blocked. Used by the scoring system (Blocks/parries).</summary>
+    public event Action Blocked;
+
     void Awake()
     {
         _combat = GetComponent<PlayerCombat>();
@@ -26,8 +30,12 @@ public class FrontalShieldBlock : MonoBehaviour, IDamageFilter
 
         Vector3 toSource = info.sourcePosition - transform.position;
         toSource.y = 0f;
-        if (toSource.sqrMagnitude < 0.0001f) return true; // directly above the player: treat as frontal
 
-        return Vector3.Angle(transform.forward, toSource.normalized) <= blockAngle * 0.5f;
+        // Directly above the player counts as frontal; otherwise require the source within the cone.
+        bool blocked = toSource.sqrMagnitude < 0.0001f
+                       || Vector3.Angle(transform.forward, toSource.normalized) <= blockAngle * 0.5f;
+
+        if (blocked) Blocked?.Invoke();
+        return blocked;
     }
 }

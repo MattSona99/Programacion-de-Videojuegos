@@ -95,6 +95,12 @@ public class WaveManager : MonoBehaviour
     /// <summary>Fired on every killed enemy: the statue director hooks here to queue a drop.</summary>
     public event System.Action EnemyKilled;
 
+    /// <summary>Fired when a wave is cleared (scoring). Code-friendly mirror of the private onWaveCleared UnityEvent.</summary>
+    public event System.Action WaveCompleted;
+
+    /// <summary>Fired when a killed enemy drops a health pickup (scoring: "luck" bonus).</summary>
+    public event System.Action HealthDropSpawned;
+
     void Start()
     {
         if (startOnPlay) StartNextWave();
@@ -267,6 +273,8 @@ public class WaveManager : MonoBehaviour
         GameObject drop = pool.Get(pos, Quaternion.identity);
         if (drop.TryGetComponent(out HealthPickup pickup))
             pickup.Configure(() => pool.Release(drop));
+
+        HealthDropSpawned?.Invoke();
     }
 
     /// <summary>Anti-softlock safety net: the wave didn't close in time (e.g. an unreachable enemy). Returns the survivors to the pool and closes the wave.</summary>
@@ -299,6 +307,7 @@ public class WaveManager : MonoBehaviour
         if (_timeoutRoutine != null) { StopCoroutine(_timeoutRoutine); _timeoutRoutine = null; }
         _waveActive = false;
         onWaveCleared.Invoke(_currentWaveIndex);
+        WaveCompleted?.Invoke();
         if (_ended) return;
 
         bool lastWave = _currentWaveIndex >= waves.Length - 1;
